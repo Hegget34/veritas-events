@@ -221,11 +221,11 @@ public class VeritasEventsPlugin extends Plugin
 	{
 		String json = gson.toJson(payload);
 		RequestBody body = screenshot == null
-			? RequestBody.create(json, JSON)
+			? RequestBody.create(JSON, json)
 			: new MultipartBody.Builder()
 				.setType(MultipartBody.FORM)
 				.addFormDataPart("payload_json", json)
-				.addFormDataPart("file", "screenshot.png", RequestBody.create(screenshot, PNG))
+				.addFormDataPart("file", "screenshot.png", RequestBody.create(PNG, screenshot))
 				.build();
 
 		Request request = new Request.Builder()
