@@ -9,7 +9,9 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.inject.Provides;
+import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -17,7 +19,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nullable;
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
 import javax.inject.Inject;
 import javax.swing.ImageIcon;
 import lombok.extern.slf4j.Slf4j;
@@ -59,7 +65,9 @@ import okhttp3.ResponseBody;
 public class VeritasEventsPlugin extends Plugin
 {
 	private static final MediaType JSON = MediaType.get("application/json");
-	private static final MediaType PNG = MediaType.get("image/png");
+	private static final MediaType JPEG = MediaType.get("image/jpeg");
+	private static final int MAX_WIDTH = 1920;
+	private static final float QUALITY = 0.85f;
 
 	@Inject
 	private Client client;
@@ -207,7 +215,7 @@ public class VeritasEventsPlugin extends Plugin
 		lastSend = () -> post(payload, source, icons, value, null);
 		if (config.sendScreenshot())
 		{
-			drawManager.requestNextFrameListener(image -> post(payload, source, icons, value, png(image)));
+			drawManager.requestNextFrameListener(image -> post(payload, source, icons, value, jpeg(image)));
 		}
 		else
 		{
@@ -215,20 +223,53 @@ public class VeritasEventsPlugin extends Plugin
 		}
 	}
 
+	/**
+	 * A full colour PNG of the game runs to about half a megabyte, which is a lot
+	 * to keep for every drop of an event. A JPEG of the same frame is about a
+	 * fifth of that and still sharp enough to read the chatbox, so drops stay
+	 * verifiable afterwards. Only very large clients are scaled down at all.
+	 */
 	@Nullable
-	private static byte[] png(Image image)
+	private static byte[] jpeg(Image image)
 	{
 		try
 		{
-			BufferedImage copy = new BufferedImage(
-				image.getWidth(null), image.getHeight(null), BufferedImage.TYPE_INT_ARGB);
-			copy.getGraphics().drawImage(image, 0, 0, null);
+			int width = image.getWidth(null);
+			int height = image.getHeight(null);
+			if (width <= 0 || height <= 0)
+			{
+				return null;
+			}
+
+			double scale = Math.min(1.0, (double) MAX_WIDTH / width);
+			int scaledWidth = (int) Math.round(width * scale);
+			int scaledHeight = (int) Math.round(height * scale);
+
+			// JPEG has no alpha channel, so draw onto an opaque image first.
+			BufferedImage copy = new BufferedImage(scaledWidth, scaledHeight, BufferedImage.TYPE_INT_RGB);
+			Graphics2D graphics = copy.createGraphics();
+			graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+			graphics.drawImage(image, 0, 0, scaledWidth, scaledHeight, null);
+			graphics.dispose();
+
+			ImageWriter writer = ImageIO.getImageWritersByFormatName("jpg").next();
+			ImageWriteParam params = writer.getDefaultWriteParam();
+			params.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+			params.setCompressionQuality(QUALITY);
 
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
-			ImageIO.write(copy, "png", out);
+			try (ImageOutputStream stream = ImageIO.createImageOutputStream(out))
+			{
+				writer.setOutput(stream);
+				writer.write(null, new IIOImage(copy, null, null), params);
+			}
+			finally
+			{
+				writer.dispose();
+			}
 			return out.toByteArray();
 		}
-		catch (IOException e)
+		catch (IOException | RuntimeException e)
 		{
 			log.debug("could not capture a screenshot", e);
 			return null;
@@ -300,7 +341,7 @@ public class VeritasEventsPlugin extends Plugin
 			: new MultipartBody.Builder()
 				.setType(MultipartBody.FORM)
 				.addFormDataPart("payload_json", json)
-				.addFormDataPart("file", "screenshot.png", RequestBody.create(PNG, screenshot))
+				.addFormDataPart("file", "screenshot.jpg", RequestBody.create(JPEG, screenshot))
 				.build();
 
 		Request request = new Request.Builder()

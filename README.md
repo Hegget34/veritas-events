@@ -59,7 +59,7 @@ panel that works - it just shows less.
 
 A single JSON object. With screenshots switched on it is sent as
 `multipart/form-data`, with the JSON in a `payload_json` part and the image in a
-`file` part — the same shape Dink uses, so a server written for one can accept
+`file` part as a JPEG — the same shape Dink uses, so a server written for one can accept
 the other.
 
 ```json
@@ -110,6 +110,13 @@ fills the panel from the answer:
 
 Every field is optional. A board that answers with nothing, or does not answer
 at all, still leaves a working panel - those parts just stay empty.
+
+## Screenshots
+
+Sent as a JPEG at the client's own resolution, so a drop can still be checked
+close up afterwards. Only clients wider than 1920 are scaled down. A PNG of the
+game is around 500 KB a frame; this is nearer 120 KB, which matters once a whole
+clan is sending them for days.
 
 ## Privacy
 
