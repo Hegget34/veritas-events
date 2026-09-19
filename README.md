@@ -15,11 +15,11 @@ to one event or one organiser.
 | **Drops** | Any loot from a kill, chest or raid, above a value you choose |
 | **Pets** | When the "funny feeling" message appears |
 | **Collection log** | When a new entry is added |
-| **Levels** | When you advance a skill |
+| **Levels** | When you advance a skill, including 99s |
 | **Quests** | When you finish a quest |
-| **Combat achievements** | Tasks and achievement diaries |
+| **Combat achievements** | When you finish a combat task |
 | **Clues** | Completed treasure trails |
-| **Personal bests** | New best times |
+| **Personal bests** | Only a new best, not every timed kill |
 
 Each of these has its own switch, so an event that only cares about drops can
 leave the rest off.

@@ -78,7 +78,7 @@ public interface VeritasEventsConfig extends Config
 	}
 
 	@ConfigItem(keyName = "sendLevels", name = "Levels", position = 5, section = sendSection,
-		description = "Levels and 99s")
+		description = "Levels, including 99s")
 	default boolean sendLevels()
 	{
 		return true;
@@ -92,7 +92,7 @@ public interface VeritasEventsConfig extends Config
 	}
 
 	@ConfigItem(keyName = "sendAchievements", name = "Combat achievements", position = 7, section = sendSection,
-		description = "Combat achievement tasks and diaries")
+		description = "Combat achievement tasks")
 	default boolean sendAchievements()
 	{
 		return true;

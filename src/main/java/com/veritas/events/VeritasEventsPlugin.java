@@ -24,6 +24,9 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.Subscribe;
@@ -179,16 +182,12 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			type = "COLLECTION_LOG";
 		}
-		else if (config.sendLevels() && lower.contains("you've just advanced your"))
+		else if (config.sendLevels()
+			&& (lower.contains("you've just advanced your") || lower.contains("reached the highest possible")))
 		{
 			type = "LEVEL";
 		}
-		else if (config.sendQuests() && lower.contains("congratulations, you've completed a quest"))
-		{
-			type = "QUEST";
-		}
-		else if (config.sendAchievements()
-			&& (lower.contains("combat achievement task") || lower.contains("achievement diary")))
+		else if (config.sendAchievements() && lower.contains("combat task:"))
 		{
 			type = "ACHIEVEMENT";
 		}
@@ -196,7 +195,8 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			type = "CLUE";
 		}
-		else if (config.sendPersonalBests() && lower.contains("personal best"))
+		// Only a new best, not the "Personal best: x" line every timed kill prints.
+		else if (config.sendPersonalBests() && lower.contains("(new personal best)"))
 		{
 			type = "PERSONAL_BEST";
 		}
@@ -209,12 +209,28 @@ public class VeritasEventsPlugin extends Plugin
 		}
 	}
 
+	@Subscribe
+	public void onWidgetLoaded(WidgetLoaded event)
+	{
+		if (event.getGroupId() != InterfaceID.QUESTSCROLL
+			|| !config.sendQuests() || config.eventUrl().trim().isEmpty())
+		{
+			return;
+		}
+
+		Widget title = client.getWidget(InterfaceID.Questscroll.QUEST_TITLE);
+		String quest = title == null ? "" : Text.removeTags(title.getText());
+		JsonObject payload = payload("QUEST");
+		payload.addProperty("message", quest);
+		send(payload, quest.isEmpty() ? "Quest complete" : quest, Collections.emptyList(), 0);
+	}
+
 	private JsonObject payload(String type)
 	{
 		Player local = client.getLocalPlayer();
 		JsonObject payload = new JsonObject();
 		payload.addProperty("type", type);
-		payload.addProperty("player", local == null ? "" : local.getName());
+		payload.addProperty("player", local == null ? "" : Text.sanitize(local.getName()));
 		payload.addProperty("sentAt", System.currentTimeMillis());
 		return payload;
 	}
