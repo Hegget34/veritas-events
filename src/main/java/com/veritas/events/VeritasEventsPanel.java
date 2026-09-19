@@ -29,6 +29,7 @@ import net.runelite.client.util.QuantityFormatter;
 class VeritasEventsPanel extends PluginPanel
 {
 	private static final int HISTORY = 15;
+	private static final Color BIG_DROP = new Color(0xC8, 0xA0, 0x00);
 
 	private final VeritasEventsConfig config;
 	private final ItemManager itemManager;
@@ -173,7 +174,7 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			JLabel value = new JLabel(QuantityFormatter.quantityToStackSize(entry.value) + " gp");
 			value.setFont(FontManager.getRunescapeSmallFont());
-			value.setForeground(Color.GRAY);
+			value.setForeground(entry.value >= config.bigDropValue() ? BIG_DROP : Color.GRAY);
 			top.add(value, BorderLayout.EAST);
 		}
 		box.add(top, BorderLayout.NORTH);

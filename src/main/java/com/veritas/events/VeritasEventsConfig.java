@@ -21,9 +21,6 @@ public interface VeritasEventsConfig extends Config
 	@ConfigSection(name = "What to send", description = "Choose which things get reported", position = 1)
 	String sendSection = "send";
 
-	@ConfigSection(name = "Discord", description = "Optionally post to a Discord channel too", position = 2)
-	String discordSection = "discord";
-
 	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 0, section = eventSection,
 		description = "The address your event organiser gave you. Leave blank to turn the plugin off.")
 	default String eventUrl()
@@ -59,66 +56,60 @@ public interface VeritasEventsConfig extends Config
 		return 0;
 	}
 
-	@ConfigItem(keyName = "sendPets", name = "Pets", position = 2, section = sendSection,
+	@ConfigItem(keyName = "bigDropValue", name = "Big drop value", position = 2, section = sendSection,
+		description = "Drops worth at least this much are called out on the event page.")
+	default int bigDropValue()
+	{
+		return 1000000;
+	}
+
+	@ConfigItem(keyName = "sendPets", name = "Pets", position = 3, section = sendSection,
 		description = "When you get a pet")
 	default boolean sendPets()
 	{
 		return true;
 	}
 
-	@ConfigItem(keyName = "sendCollectionLog", name = "Collection log", position = 3, section = sendSection,
+	@ConfigItem(keyName = "sendCollectionLog", name = "Collection log", position = 4, section = sendSection,
 		description = "New collection log entries")
 	default boolean sendCollectionLog()
 	{
 		return true;
 	}
 
-	@ConfigItem(keyName = "sendLevels", name = "Levels", position = 4, section = sendSection,
+	@ConfigItem(keyName = "sendLevels", name = "Levels", position = 5, section = sendSection,
 		description = "Levels and 99s")
 	default boolean sendLevels()
 	{
 		return true;
 	}
 
-	@ConfigItem(keyName = "sendQuests", name = "Quests", position = 5, section = sendSection,
+	@ConfigItem(keyName = "sendQuests", name = "Quests", position = 6, section = sendSection,
 		description = "Quest completions")
 	default boolean sendQuests()
 	{
 		return true;
 	}
 
-	@ConfigItem(keyName = "sendAchievements", name = "Combat achievements", position = 6, section = sendSection,
+	@ConfigItem(keyName = "sendAchievements", name = "Combat achievements", position = 7, section = sendSection,
 		description = "Combat achievement tasks and diaries")
 	default boolean sendAchievements()
 	{
 		return true;
 	}
 
-	@ConfigItem(keyName = "sendClues", name = "Clues", position = 7, section = sendSection,
+	@ConfigItem(keyName = "sendClues", name = "Clues", position = 8, section = sendSection,
 		description = "Completed treasure trails")
 	default boolean sendClues()
 	{
 		return true;
 	}
 
-	@ConfigItem(keyName = "sendPersonalBests", name = "Personal bests", position = 8, section = sendSection,
+	@ConfigItem(keyName = "sendPersonalBests", name = "Personal bests", position = 9, section = sendSection,
 		description = "New personal best times")
 	default boolean sendPersonalBests()
 	{
 		return true;
 	}
 
-	@ConfigItem(keyName = "discordWebhook", name = "Discord webhook", position = 0, section = discordSection,
-		secret = true, description = "Optional. Paste a Discord webhook URL to post there as well as to the event.")
-	default String discordWebhook()
-	{
-		return "";
-	}
-
-	@ConfigItem(keyName = "discordMinimum", name = "Discord minimum value", position = 1, section = discordSection,
-		description = "Only announce drops worth at least this much to Discord. Other events always announce.")
-	default int discordMinimum()
-	{
-		return 1000000;
-	}
 }

@@ -36,7 +36,6 @@ import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.DrawManager;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
-import net.runelite.client.util.QuantityFormatter;
 import net.runelite.client.util.Text;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -155,6 +154,7 @@ public class VeritasEventsPlugin extends Plugin
 		JsonObject payload = payload("LOOT");
 		payload.addProperty("source", event.getName());
 		payload.addProperty("totalValue", total);
+		payload.addProperty("big", total >= config.bigDropValue());
 		payload.add("items", items);
 		send(payload, event.getName(), icons, total);
 	}
@@ -321,8 +321,6 @@ public class VeritasEventsPlugin extends Plugin
 
 	private void post(JsonObject payload, String source, List<int[]> icons, long value, @Nullable byte[] screenshot)
 	{
-		discord(payload, source, value, screenshot);
-
 		String json = gson.toJson(payload);
 		RequestBody body = screenshot == null
 			? RequestBody.create(JSON, json)
@@ -356,81 +354,6 @@ public class VeritasEventsPlugin extends Plugin
 		});
 	}
 
-	/**
-	 * Optional second post, straight to a Discord webhook, so a channel sees the
-	 * drop even if the event board is not watching.
-	 */
-	private void discord(JsonObject payload, String title, long value, @Nullable byte[] screenshot)
-	{
-		String hook = config.discordWebhook().trim();
-		if (hook.isEmpty()
-			|| ("LOOT".equals(payload.get("type").getAsString()) && value < config.discordMinimum()))
-		{
-			return;
-		}
-
-		JsonObject author = new JsonObject();
-		author.addProperty("name", payload.get("player").getAsString());
-
-		JsonObject embed = new JsonObject();
-		embed.addProperty("title", title);
-		embed.addProperty("color", 0xC8A000);
-		embed.add("author", author);
-		if (value > 0)
-		{
-			JsonObject field = new JsonObject();
-			field.addProperty("name", "Value");
-			field.addProperty("value", QuantityFormatter.quantityToStackSize(value) + " gp");
-			field.addProperty("inline", true);
-			JsonArray fields = new JsonArray();
-			fields.add(field);
-			if (payload.has("source"))
-			{
-				JsonObject from = new JsonObject();
-				from.addProperty("name", "From");
-				from.addProperty("value", payload.get("source").getAsString());
-				from.addProperty("inline", true);
-				fields.add(from);
-			}
-			embed.add("fields", fields);
-		}
-		if (screenshot != null)
-		{
-			JsonObject image = new JsonObject();
-			image.addProperty("url", "attachment://screenshot.png");
-			embed.add("image", image);
-		}
-
-		JsonArray embeds = new JsonArray();
-		embeds.add(embed);
-		JsonObject message = new JsonObject();
-		message.add("embeds", embeds);
-
-		String json = gson.toJson(message);
-		RequestBody body = screenshot == null
-			? RequestBody.create(JSON, json)
-			: new MultipartBody.Builder()
-				.setType(MultipartBody.FORM)
-				.addFormDataPart("payload_json", json)
-				.addFormDataPart("file", "screenshot.png", RequestBody.create(PNG, screenshot))
-				.build();
-
-		okHttpClient.newCall(new Request.Builder().url(hook).post(body).build())
-			.enqueue(new Callback()
-			{
-				@Override
-				public void onFailure(Call call, IOException e)
-				{
-					log.warn("could not reach Discord", e);
-				}
-
-				@Override
-				public void onResponse(Call call, Response response)
-				{
-					response.close();
-				}
-			});
-	}
 
 	private void report(String source, List<int[]> icons, long value, boolean ok)
 	{

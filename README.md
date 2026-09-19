@@ -40,12 +40,11 @@ your organiser gives you one.
 
 That's it. Play normally and your drops turn up on the board.
 
-## Discord
+## Big drops
 
-Paste a Discord webhook URL in the settings and big drops are announced in that
-channel as well, with the item, its value, what you killed and your screenshot.
-The threshold is yours to set and defaults to 1,000,000 gp, so only drops worth
-shouting about get posted. Leave the webhook blank and nothing goes to Discord.
+Set a **Big drop value** and anything worth at least that much is flagged in the
+message as `"big": true`, so the event page can call it out instead of listing
+it quietly with everything else. It defaults to 1,000,000 gp.
 
 ## The side panel
 
@@ -73,6 +72,7 @@ the other.
   "sourceType": "NPC",
   "quantity": 1,
   "totalValue": 1250000,
+  "big": true,
   "items": [
     { "id": 28279, "name": "Blood quartz", "quantity": 1, "priceEach": 1250000 }
   ]
@@ -103,7 +103,6 @@ that part of the panel blank.
 - Nothing leaves your client until you enter an event URL
 - Only what is listed above is sent, and only to the address you paste in
 - Screenshots can be turned off while everything else keeps working
-- Discord posting is off until you paste in a webhook of your own
 - Your account is identified by RSN only
 
 ## Building it yourself
