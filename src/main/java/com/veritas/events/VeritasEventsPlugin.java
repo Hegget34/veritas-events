@@ -24,9 +24,6 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
-import net.runelite.api.events.WidgetLoaded;
-import net.runelite.api.gameval.InterfaceID;
-import net.runelite.api.widgets.Widget;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.Subscribe;
@@ -182,15 +179,6 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			type = "COLLECTION_LOG";
 		}
-		else if (config.sendLevels()
-			&& (lower.contains("you've just advanced your") || lower.contains("reached the highest possible")))
-		{
-			type = "LEVEL";
-		}
-		else if (config.sendAchievements() && lower.contains("combat task:"))
-		{
-			type = "ACHIEVEMENT";
-		}
 		else if (config.sendClues() && lower.contains("treasure trail"))
 		{
 			type = "CLUE";
@@ -209,21 +197,6 @@ public class VeritasEventsPlugin extends Plugin
 		}
 	}
 
-	@Subscribe
-	public void onWidgetLoaded(WidgetLoaded event)
-	{
-		if (event.getGroupId() != InterfaceID.QUESTSCROLL
-			|| !config.sendQuests() || config.eventUrl().trim().isEmpty())
-		{
-			return;
-		}
-
-		Widget title = client.getWidget(InterfaceID.Questscroll.QUEST_TITLE);
-		String quest = title == null ? "" : Text.removeTags(title.getText());
-		JsonObject payload = payload("QUEST");
-		payload.addProperty("message", quest);
-		send(payload, quest.isEmpty() ? "Quest complete" : quest, Collections.emptyList(), 0);
-	}
 
 	private JsonObject payload(String type)
 	{

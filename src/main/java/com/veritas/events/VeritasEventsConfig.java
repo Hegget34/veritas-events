@@ -77,35 +77,17 @@ public interface VeritasEventsConfig extends Config
 		return true;
 	}
 
-	@ConfigItem(keyName = "sendLevels", name = "Levels", position = 5, section = sendSection,
-		description = "Levels, including 99s")
-	default boolean sendLevels()
-	{
-		return true;
-	}
 
-	@ConfigItem(keyName = "sendQuests", name = "Quests", position = 6, section = sendSection,
-		description = "Quest completions")
-	default boolean sendQuests()
-	{
-		return true;
-	}
 
-	@ConfigItem(keyName = "sendAchievements", name = "Combat achievements", position = 7, section = sendSection,
-		description = "Combat achievement tasks")
-	default boolean sendAchievements()
-	{
-		return true;
-	}
 
-	@ConfigItem(keyName = "sendClues", name = "Clues", position = 8, section = sendSection,
+	@ConfigItem(keyName = "sendClues", name = "Clues", position = 5, section = sendSection,
 		description = "Completed treasure trails")
 	default boolean sendClues()
 	{
 		return true;
 	}
 
-	@ConfigItem(keyName = "sendPersonalBests", name = "Personal bests", position = 9, section = sendSection,
+	@ConfigItem(keyName = "sendPersonalBests", name = "Personal bests", position = 6, section = sendSection,
 		description = "New personal best times")
 	default boolean sendPersonalBests()
 	{
