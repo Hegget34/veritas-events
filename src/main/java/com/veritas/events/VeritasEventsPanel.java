@@ -41,6 +41,8 @@ class VeritasEventsPanel extends PluginPanel
 {
 	private static final int HISTORY = 15;
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
+	private static final int BAR_HEIGHT = 16;
+	private static final int MAX_TASKS = 20;
 
 	private final VeritasEventsConfig config;
 	private final ItemManager itemManager;
@@ -201,29 +203,32 @@ class VeritasEventsPanel extends PluginPanel
 			}
 
 			eventTab.add(Box.createVerticalStrut(8));
+			eventTab.add(stats(details));
 
-			JPanel stats = new JPanel(new GridLayout(1, 2, 4, 0));
-			stats.setBackground(ColorScheme.DARK_GRAY_COLOR);
-			stats.setAlignmentX(Component.LEFT_ALIGNMENT);
-			stats.add(stat("Your team", orDash(text(details, "team"))));
-			stats.add(stat("Your drops", String.valueOf(sends)));
-			eventTab.add(stats);
-
-			if (has(details, "total"))
+			JsonObject progress = object(details, "progress");
+			if (progress != null && has(progress, "total"))
 			{
-				int done = number(details, "done");
-				int total = Math.max(1, number(details, "total"));
-				ProgressBar bar = new ProgressBar();
-				bar.setMaximumValue(total);
-				bar.setValue(done);
-				bar.setCenterLabel(done + " / " + total + " tiles");
-				bar.setLeftLabel("");
-				bar.setRightLabel("");
-				bar.setForeground(GOLD);
-				bar.setPreferredSize(new Dimension(0, 18));
-				bar.setAlignmentX(Component.LEFT_ALIGNMENT);
 				eventTab.add(Box.createVerticalStrut(8));
-				eventTab.add(bar);
+				eventTab.add(bar(progress));
+			}
+
+			JsonArray tasks = array(details, "tasks");
+			if (tasks != null)
+			{
+				eventTab.add(Box.createVerticalStrut(8));
+				eventTab.add(title(orElse(text(details, "tasksLabel"), "Still needed")));
+				int shown = 0;
+				for (JsonElement element : tasks)
+				{
+					if (shown++ >= MAX_TASKS)
+					{
+						eventTab.add(line("and " + (tasks.size() - MAX_TASKS) + " more", Color.GRAY));
+						break;
+					}
+					JsonObject task = element.getAsJsonObject();
+					boolean done = has(task, "done") && task.get("done").getAsBoolean();
+					eventTab.add(row((done ? "✓ " : "• ") + text(task, "name"), "", done));
+				}
 			}
 		}
 
@@ -238,6 +243,53 @@ class VeritasEventsPanel extends PluginPanel
 		eventTab.repaint();
 	}
 
+	/** Your team, plus whatever figures this event cares about. */
+	private JPanel stats(@Nullable JsonObject details)
+	{
+		JPanel stats = new JPanel(new GridLayout(0, 2, 4, 4));
+		stats.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		stats.setAlignmentX(Component.LEFT_ALIGNMENT);
+		stats.add(stat("Your team", orDash(text(details, "team"))));
+
+		JsonArray extra = array(details, "stats");
+		if (extra != null)
+		{
+			for (JsonElement element : extra)
+			{
+				JsonObject entry = element.getAsJsonObject();
+				stats.add(stat(text(entry, "label"), orDash(text(entry, "value"))));
+			}
+		}
+		else
+		{
+			stats.add(stat("Your drops", String.valueOf(sends)));
+		}
+		return stats;
+	}
+
+	/** The event's own measure of progress, whatever it counts. */
+	private static ProgressBar bar(JsonObject progress)
+	{
+		int done = number(progress, "done");
+		int total = Math.max(1, number(progress, "total"));
+		String label = text(progress, "label");
+
+		ProgressBar bar = new ProgressBar();
+		bar.setMaximumValue(total);
+		bar.setValue(done);
+		bar.setCenterLabel(done + " / " + total + (label.isEmpty() ? "" : " " + label));
+		bar.setLeftLabel("");
+		bar.setRightLabel("");
+		bar.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
+		bar.setForeground(GOLD);
+		// ProgressBar paints its fill exactly BAR_HEIGHT tall, so the component
+		// has to be that tall too or the unfilled colour shows under it.
+		bar.setPreferredSize(new Dimension(0, BAR_HEIGHT));
+		bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, BAR_HEIGHT));
+		bar.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return bar;
+	}
+
 	private void drawTeams(@Nullable JsonObject details)
 	{
 		teamTab.removeAll();
@@ -250,13 +302,13 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		else
 		{
-			teamTab.add(title("Standings"));
+			teamTab.add(title(orElse(text(details, "standingsLabel"), "Standings")));
 			int rank = 1;
 			for (JsonElement element : standings)
 			{
 				JsonObject entry = element.getAsJsonObject();
-				String team = text(entry, "team");
-				teamTab.add(row(rank++ + ". " + team, number(entry, "tiles") + " tiles", team.equals(you)));
+				String team = text(entry, "name");
+				teamTab.add(row(rank++ + ". " + team, text(entry, "value"), team.equals(you)));
 			}
 		}
 
@@ -264,12 +316,12 @@ class VeritasEventsPanel extends PluginPanel
 		if (top != null)
 		{
 			teamTab.add(Box.createVerticalStrut(8));
-			teamTab.add(title("Most drops"));
+			teamTab.add(title(orElse(text(details, "topLabel"), "Most drops")));
 			for (JsonElement element : top)
 			{
 				JsonObject entry = element.getAsJsonObject();
-				String player = text(entry, "player");
-				teamTab.add(row(player, number(entry, "drops") + " drops", player.equals(rsn.getText())));
+				String player = text(entry, "name");
+				teamTab.add(row(player, text(entry, "value"), player.equals(rsn.getText())));
 			}
 		}
 
@@ -463,6 +515,17 @@ class VeritasEventsPanel extends PluginPanel
 		JLabel label = line("<html><body style='width:190px'>" + text + "</body></html>", Color.GRAY);
 		label.setBorder(BorderFactory.createEmptyBorder(4, 0, 4, 0));
 		return label;
+	}
+
+	private static String orElse(String value, String fallback)
+	{
+		return value.isEmpty() ? fallback : value;
+	}
+
+	@Nullable
+	private static JsonObject object(@Nullable JsonObject parent, String key)
+	{
+		return has(parent, key) && parent.get(key).isJsonObject() ? parent.getAsJsonObject(key) : null;
 	}
 
 	private static String orDash(String value)
