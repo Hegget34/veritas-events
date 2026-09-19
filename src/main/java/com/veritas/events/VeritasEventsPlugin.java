@@ -15,8 +15,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
@@ -28,13 +26,17 @@ import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.loottracker.LootReceived;
+import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.DrawManager;
+import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.Text;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -84,6 +86,42 @@ public class VeritasEventsPlugin extends Plugin
 
 	@Inject
 	private Gson gson;
+
+	@Inject
+	private ClientToolbar clientToolbar;
+
+	private VeritasEventsPanel panel;
+	private NavigationButton navButton;
+
+	@Override
+	protected void startUp()
+	{
+		panel = new VeritasEventsPanel(config);
+		navButton = NavigationButton.builder()
+			.tooltip("Veritas Events")
+			.icon(ImageUtil.loadImageResource(VeritasEventsPlugin.class, "icon.png"))
+			.priority(8)
+			.panel(panel)
+			.build();
+		clientToolbar.addNavigation(navButton);
+	}
+
+	@Override
+	protected void shutDown()
+	{
+		clientToolbar.removeNavigation(navButton);
+		panel = null;
+		navButton = null;
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (VeritasEventsConfig.GROUP.equals(event.getGroup()) && panel != null)
+		{
+			panel.refresh();
+		}
+	}
 
 	@Provides
 	VeritasEventsConfig provideConfig(ConfigManager configManager)
@@ -215,6 +253,24 @@ public class VeritasEventsPlugin extends Plugin
 		drawManager.requestNextFrameListener(image -> post(payload, toPng(image)));
 	}
 
+	/** One line for the side panel describing what just went out. */
+	private static String describe(JsonObject payload)
+	{
+		String type = payload.get("type").getAsString();
+		if ("LOOT".equals(type))
+		{
+			JsonArray items = payload.getAsJsonArray("items");
+			String first = items.size() == 0 ? "loot"
+				: items.get(0).getAsJsonObject().get("name").getAsString();
+			return items.size() > 1 ? first + " +" + (items.size() - 1) : first;
+		}
+		if ("COLLECTION_LOG".equals(type))
+		{
+			return "Clog: " + payload.get("item").getAsString();
+		}
+		return "Pet!";
+	}
+
 	@Nullable
 	private static byte[] toPng(Image image)
 	{
@@ -232,6 +288,15 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			log.debug("could not capture a screenshot", e);
 			return null;
+		}
+	}
+
+	private void note(JsonObject payload, boolean ok)
+	{
+		VeritasEventsPanel p = panel;
+		if (p != null)
+		{
+			p.record(describe(payload), ok);
 		}
 	}
 
@@ -268,6 +333,7 @@ public class VeritasEventsPlugin extends Plugin
 			public void onFailure(Call call, IOException e)
 			{
 				log.warn("Veritas Events: could not reach the event server", e);
+				note(payload, false);
 			}
 
 			@Override
@@ -277,6 +343,7 @@ public class VeritasEventsPlugin extends Plugin
 				{
 					log.warn("Veritas Events: the event server replied {}", response.code());
 				}
+				note(payload, response.isSuccessful());
 				response.close();
 			}
 		});
