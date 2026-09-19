@@ -13,6 +13,10 @@ import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import javax.annotation.Nullable;
@@ -90,6 +94,11 @@ public class VeritasEventsPlugin extends Plugin
 	@Inject
 	private ClientToolbar clientToolbar;
 
+	@Inject
+	private ScheduledExecutorService executor;
+
+	private java.util.concurrent.ScheduledFuture<?> poller;
+
 	private VeritasEventsPanel panel;
 	private NavigationButton navButton;
 
@@ -104,11 +113,17 @@ public class VeritasEventsPlugin extends Plugin
 			.panel(panel)
 			.build();
 		clientToolbar.addNavigation(navButton);
+		poller = executor.scheduleWithFixedDelay(this::fetchStatus, 5, 120, TimeUnit.SECONDS);
 	}
 
 	@Override
 	protected void shutDown()
 	{
+		if (poller != null)
+		{
+			poller.cancel(true);
+			poller = null;
+		}
 		clientToolbar.removeNavigation(navButton);
 		panel = null;
 		navButton = null;
@@ -120,6 +135,7 @@ public class VeritasEventsPlugin extends Plugin
 		if (VeritasEventsConfig.GROUP.equals(event.getGroup()) && panel != null)
 		{
 			panel.refresh();
+			executor.execute(this::fetchStatus);
 		}
 	}
 
@@ -288,6 +304,102 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			log.debug("could not capture a screenshot", e);
 			return null;
+		}
+	}
+
+	/**
+	 * Asks the event server what it is running and how this player is doing.
+	 * Entirely optional - a server that does not answer just leaves the panel
+	 * showing "Ready", and nothing else stops working.
+	 */
+	private void fetchStatus()
+	{
+		if (notConfigured() || panel == null)
+		{
+			return;
+		}
+
+		String rsn = playerName();
+		String url = config.eventUrl().trim();
+		url += (url.contains("?") ? "&" : "?") + "player="
+			+ URLEncoder.encode(rsn == null ? "" : rsn, StandardCharsets.UTF_8);
+
+		Request.Builder request = new Request.Builder().url(url).get();
+		String key = config.eventKey();
+		if (key != null && !key.trim().isEmpty())
+		{
+			request.header("X-Event-Key", key.trim());
+		}
+
+		okHttpClient.newCall(request.build()).enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call call, IOException e)
+			{
+				log.debug("no event status available", e);
+			}
+
+			@Override
+			public void onResponse(Call call, Response response)
+			{
+				try (Response r = response)
+				{
+					if (!r.isSuccessful() || r.body() == null)
+					{
+						return;
+					}
+					JsonObject root = gson.fromJson(r.body().string(), JsonObject.class);
+					VeritasEventsPanel p = panel;
+					if (root != null && p != null)
+					{
+						p.setStatus(readStatus(root));
+					}
+				}
+				catch (Exception e)
+				{
+					log.debug("could not read the event status", e);
+				}
+			}
+		});
+	}
+
+	private static VeritasEventsPanel.EventStatus readStatus(JsonObject root)
+	{
+		VeritasEventsPanel.EventStatus out = new VeritasEventsPanel.EventStatus();
+		if (root.has("event") && root.get("event").isJsonObject())
+		{
+			JsonObject e = root.getAsJsonObject("event");
+			out.eventName = str(e, "name");
+			out.phase = str(e, "phase");
+			out.boardUrl = str(e, "url");
+		}
+		if (root.has("player") && root.get("player").isJsonObject())
+		{
+			JsonObject p = root.getAsJsonObject("player");
+			out.playerKnown = p.has("known") && p.get("known").getAsBoolean();
+			out.team = str(p, "team");
+			out.submissions = num(p, "submissions");
+			out.approved = num(p, "approved");
+			out.hits = num(p, "hits");
+		}
+		return out;
+	}
+
+	@Nullable
+	private static String str(JsonObject o, String key)
+	{
+		return o.has(key) && !o.get(key).isJsonNull() ? o.get(key).getAsString() : null;
+	}
+
+	private static int num(JsonObject o, String key)
+	{
+		try
+		{
+			return o.has(key) && !o.get(key).isJsonNull() ? o.get(key).getAsInt() : 0;
+		}
+		catch (Exception e)
+		{
+			return 0;
 		}
 	}
 

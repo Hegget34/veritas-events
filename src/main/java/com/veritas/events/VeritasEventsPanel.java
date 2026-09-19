@@ -10,14 +10,15 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.GridLayout;
 import java.net.URI;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -26,23 +27,31 @@ import javax.swing.SwingUtilities;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.components.materialtabs.MaterialTab;
+import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
 
 /**
- * The side panel: whether the plugin is set up, and what it has sent this session.
+ * Side panel: whether the plugin is connected, what the event looks like,
+ * how the player is doing, and what this client has sent.
  */
 class VeritasEventsPanel extends PluginPanel
 {
 	private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm");
-	private static final int HISTORY = 12;
+	private static final int HISTORY = 20;
 	private static final Color GOOD = new Color(76, 175, 80);
 	private static final Color BAD = new Color(220, 80, 70);
-	private static final Color IDLE = new Color(160, 160, 160);
+	private static final Color IDLE = new Color(150, 150, 150);
 
-	private final Deque<String> history = new ArrayDeque<>();
-	private final JLabel status = new JLabel();
-	private final JLabel detail = new JLabel();
-	private final JPanel feed = new JPanel();
 	private final VeritasEventsConfig config;
+	private final Deque<String> history = new ArrayDeque<>();
+
+	private final JLabel status = new JLabel();
+	private final JPanel eventBox = new JPanel();
+	private final JPanel youBox = new JPanel();
+	private final JPanel feed = new JPanel();
+
+	@Nullable
+	private EventStatus latest;
 
 	VeritasEventsPanel(VeritasEventsConfig config)
 	{
@@ -50,93 +59,221 @@ class VeritasEventsPanel extends PluginPanel
 		setLayout(new BorderLayout());
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
-		JPanel top = new JPanel();
-		top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
-		top.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		add(header(), BorderLayout.NORTH);
 
-		JLabel title = new JLabel("Veritas Events");
-		title.setFont(FontManager.getRunescapeBoldFont());
-		title.setForeground(Color.WHITE);
-		title.setAlignmentX(Component.LEFT_ALIGNMENT);
+		JPanel home = column();
+		home.add(section("Event", eventBox));
+		home.add(Box.createVerticalStrut(8));
+		home.add(section("You", youBox));
+		home.add(Box.createVerticalStrut(8));
+		home.add(openButton());
 
-		status.setFont(FontManager.getRunescapeSmallFont());
-		status.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-		detail.setFont(FontManager.getRunescapeSmallFont());
-		detail.setForeground(IDLE);
-		detail.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-		top.add(title);
-		top.add(status);
-		top.add(detail);
-		top.add(javax.swing.Box.createVerticalStrut(10));
-
-		JLabel sent = new JLabel("Sent this session");
-		sent.setFont(FontManager.getRunescapeSmallFont());
-		sent.setForeground(IDLE);
-		sent.setAlignmentX(Component.LEFT_ALIGNMENT);
-		top.add(sent);
-
+		JPanel activity = column();
 		feed.setLayout(new BoxLayout(feed, BoxLayout.Y_AXIS));
 		feed.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		feed.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+		activity.add(feed);
 
-		JPanel bottom = new JPanel(new GridLayout(0, 1, 0, 4));
-		bottom.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		bottom.add(link("Open the event board", () -> config.eventUrl()));
+		JPanel display = new JPanel(new BorderLayout());
+		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		add(top, BorderLayout.NORTH);
-		add(feed, BorderLayout.CENTER);
-		add(bottom, BorderLayout.SOUTH);
+		MaterialTabGroup tabs = new MaterialTabGroup(display);
+		tabs.addTab(new MaterialTab("Home", tabs, home));
+		MaterialTab activityTab = new MaterialTab("Activity", tabs, activity);
+		tabs.addTab(activityTab);
+		tabs.select(tabs.getTab(0));
+
+		JPanel body = new JPanel(new BorderLayout());
+		body.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		body.add(tabs, BorderLayout.NORTH);
+		body.add(display, BorderLayout.CENTER);
+		add(body, BorderLayout.CENTER);
 
 		refresh();
 	}
 
-	/** Re-reads the config and repaints the status line. */
+	private JPanel header()
+	{
+		JPanel top = column();
+		JLabel title = new JLabel("Veritas Events");
+		title.setFont(FontManager.getRunescapeBoldFont());
+		title.setForeground(Color.WHITE);
+		title.setAlignmentX(Component.LEFT_ALIGNMENT);
+		status.setFont(FontManager.getRunescapeSmallFont());
+		status.setAlignmentX(Component.LEFT_ALIGNMENT);
+		top.add(title);
+		top.add(status);
+		top.add(Box.createVerticalStrut(8));
+		return top;
+	}
+
+	private static JPanel column()
+	{
+		JPanel p = new JPanel();
+		p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+		p.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		return p;
+	}
+
+	private static JPanel section(String name, JPanel content)
+	{
+		JPanel wrap = column();
+		JLabel label = new JLabel(name.toUpperCase());
+		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setForeground(IDLE);
+		label.setAlignmentX(Component.LEFT_ALIGNMENT);
+		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+		content.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		content.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+		content.setAlignmentX(Component.LEFT_ALIGNMENT);
+		wrap.add(label);
+		wrap.add(content);
+		return wrap;
+	}
+
+	private JButton openButton()
+	{
+		JButton button = new JButton("Open the event board");
+		button.setFont(FontManager.getRunescapeSmallFont());
+		button.setFocusPainted(false);
+		button.setPreferredSize(new Dimension(0, 26));
+		button.setAlignmentX(Component.LEFT_ALIGNMENT);
+		button.addActionListener(e -> browse(boardUrl()));
+		return button;
+	}
+
+	private String boardUrl()
+	{
+		EventStatus s = latest;
+		if (s != null && s.boardUrl != null && !s.boardUrl.isEmpty())
+		{
+			return s.boardUrl;
+		}
+		return config.eventUrl();
+	}
+
+	private static void browse(String target)
+	{
+		if (target == null || target.trim().isEmpty())
+		{
+			return;
+		}
+		try
+		{
+			if (Desktop.isDesktopSupported())
+			{
+				Desktop.getDesktop().browse(new URI(target.trim()));
+			}
+		}
+		catch (Exception ignored)
+		{
+			// if the browser will not open there is nothing useful to do
+		}
+	}
+
+	/** Called when settings change or a status fetch comes back. */
 	void refresh()
 	{
 		SwingUtilities.invokeLater(() ->
 		{
 			boolean configured = config.eventUrl() != null && !config.eventUrl().trim().isEmpty();
+			EventStatus s = latest;
+
 			if (!configured)
 			{
 				status.setText("Not set up");
 				status.setForeground(BAD);
-				detail.setText("Paste your event URL in the settings");
 			}
-			else
+			else if (s == null)
 			{
 				status.setText("Ready");
 				status.setForeground(GOOD);
-				detail.setText(describeWhatIsSent());
 			}
+			else
+			{
+				status.setText("Connected");
+				status.setForeground(GOOD);
+			}
+
+			eventBox.removeAll();
+			if (!configured)
+			{
+				eventBox.add(line("Paste your event URL in the settings", IDLE));
+			}
+			else if (s == null || s.eventName == null)
+			{
+				eventBox.add(line("Sending to your event", Color.LIGHT_GRAY));
+				eventBox.add(line(describeWhatIsSent(), IDLE));
+			}
+			else
+			{
+				eventBox.add(line(s.eventName, Color.WHITE));
+				if (s.phase != null)
+				{
+					eventBox.add(line(s.phase, IDLE));
+				}
+				eventBox.add(line(describeWhatIsSent(), IDLE));
+			}
+
+			youBox.removeAll();
+			if (s != null && s.playerKnown)
+			{
+				if (s.team != null)
+				{
+					youBox.add(line(s.team, Color.WHITE));
+				}
+				youBox.add(line(s.submissions + " drops, " + s.approved + " approved", Color.LIGHT_GRAY));
+				youBox.add(line(s.hits + " hits", Color.LIGHT_GRAY));
+			}
+			else if (configured)
+			{
+				youBox.add(line("Not on this event's player list yet", IDLE));
+			}
+			else
+			{
+				youBox.add(line("-", IDLE));
+			}
+
 			redrawFeed();
+			revalidate();
+			repaint();
 		});
+	}
+
+	private static JLabel line(String text, Color colour)
+	{
+		JLabel label = new JLabel(text);
+		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setForeground(colour);
+		label.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return label;
 	}
 
 	private String describeWhatIsSent()
 	{
-		StringBuilder sb = new StringBuilder("Sending: ");
-		boolean any = false;
+		StringBuilder sb = new StringBuilder();
 		if (config.sendLoot())
 		{
 			sb.append("drops");
-			any = true;
 		}
 		if (config.sendPets())
 		{
-			sb.append(any ? ", pets" : "pets");
-			any = true;
+			sb.append(sb.length() == 0 ? "pets" : ", pets");
 		}
 		if (config.sendCollectionLog())
 		{
-			sb.append(any ? ", clog" : "clog");
-			any = true;
+			sb.append(sb.length() == 0 ? "clog" : ", clog");
 		}
-		return any ? sb.toString() : "Nothing selected in settings";
+		return sb.length() == 0 ? "Nothing selected in settings" : "Sending " + sb;
 	}
 
-	/** Records one send for the session feed. */
+	void setStatus(@Nullable EventStatus status)
+	{
+		this.latest = status;
+		refresh();
+	}
+
+	/** Records one send for the Activity tab. */
 	void record(String what, boolean ok)
 	{
 		synchronized (history)
@@ -157,19 +294,13 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			if (history.isEmpty())
 			{
-				JLabel none = new JLabel("Nothing yet");
-				none.setFont(FontManager.getRunescapeSmallFont());
-				none.setForeground(IDLE);
-				feed.add(none);
+				feed.add(line("Nothing sent yet", IDLE));
 			}
 			else
 			{
-				for (String line : history)
+				for (String row : history)
 				{
-					JLabel row = new JLabel(line);
-					row.setFont(FontManager.getRunescapeSmallFont());
-					row.setForeground(line.startsWith("✓") ? Color.LIGHT_GRAY : BAD);
-					feed.add(row);
+					feed.add(line(row, row.startsWith("✓") ? Color.LIGHT_GRAY : BAD));
 				}
 			}
 		}
@@ -177,32 +308,16 @@ class VeritasEventsPanel extends PluginPanel
 		feed.repaint();
 	}
 
-	private JButton link(String text, java.util.function.Supplier<String> url)
+	/** What the event server tells us about itself and the player. */
+	static class EventStatus
 	{
-		JButton button = new JButton(text);
-		button.setFont(FontManager.getRunescapeSmallFont());
-		button.setFocusPainted(false);
-		button.setPreferredSize(new Dimension(0, 26));
-		button.addActionListener(e ->
-		{
-			String target = url.get();
-			if (target == null || target.trim().isEmpty())
-			{
-				return;
-			}
-			try
-			{
-				URI uri = new URI(target.trim());
-				if (Desktop.isDesktopSupported())
-				{
-					Desktop.getDesktop().browse(uri);
-				}
-			}
-			catch (Exception ignored)
-			{
-				// nothing useful to do if the browser will not open
-			}
-		});
-		return button;
+		String eventName;
+		String phase;
+		String boardUrl;
+		boolean playerKnown;
+		String team;
+		int submissions;
+		int approved;
+		int hits;
 	}
 }
