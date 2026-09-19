@@ -14,13 +14,9 @@ to one event or one organiser.
 | --- | --- |
 | **Drops** | Any loot from a kill, chest or raid, above a value you choose |
 | **Pets** | When the "funny feeling" message appears |
-| **Collection log** | When a new entry is added |
-| **Clues** | Completed treasure trails |
-| **Personal bests** | Only a new best, not every timed kill |
 
-Each has its own switch, so an event that only cares about drops can leave the
-rest off. Levels, quests and combat achievements are deliberately absent: this
-is for running events, not for tracking someone's account day to day.
+Drops and pets, and nothing else. This is for running events, not for
+tracking someone's account day to day.
 
 Each message carries the item name and id, quantity, Grand Exchange value, what
 you killed, your RSN and the time — plus a screenshot, if you leave that on.
@@ -77,8 +73,8 @@ the other.
 }
 ```
 
-`type` is `LOOT`, `PET`, `COLLECTION_LOG`, `CLUE` or `PERSONAL_BEST`. Only `LOOT` carries `source` and `items`; every other
-type carries the chat line that triggered it as `message`.
+`type` is `LOOT` or `PET`. `LOOT` carries `source` and `items`; `PET`
+carries the chat line that triggered it as `message`.
 
 The event password is sent as an `X-Event-Key` header, never in the URL, so it
 stays out of server logs and browser history.

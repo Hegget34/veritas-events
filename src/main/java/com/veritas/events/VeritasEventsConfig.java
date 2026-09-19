@@ -70,28 +70,10 @@ public interface VeritasEventsConfig extends Config
 		return true;
 	}
 
-	@ConfigItem(keyName = "sendCollectionLog", name = "Collection log", position = 4, section = sendSection,
-		description = "New collection log entries")
-	default boolean sendCollectionLog()
-	{
-		return true;
-	}
 
 
 
 
-	@ConfigItem(keyName = "sendClues", name = "Clues", position = 5, section = sendSection,
-		description = "Completed treasure trails")
-	default boolean sendClues()
-	{
-		return true;
-	}
 
-	@ConfigItem(keyName = "sendPersonalBests", name = "Personal bests", position = 6, section = sendSection,
-		description = "New personal best times")
-	default boolean sendPersonalBests()
-	{
-		return true;
-	}
 
 }

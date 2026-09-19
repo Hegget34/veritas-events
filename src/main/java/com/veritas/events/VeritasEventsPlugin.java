@@ -162,36 +162,16 @@ public class VeritasEventsPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
-		if (event.getType() != ChatMessageType.GAMEMESSAGE || config.eventUrl().trim().isEmpty())
+		if (event.getType() != ChatMessageType.GAMEMESSAGE
+			|| !config.sendPets() || config.eventUrl().trim().isEmpty())
 		{
 			return;
 		}
 
 		String message = Text.removeTags(event.getMessage());
-		String lower = message.toLowerCase();
-
-		String type = null;
-		if (config.sendPets() && lower.contains("funny feeling like"))
+		if (message.toLowerCase().contains("funny feeling like"))
 		{
-			type = "PET";
-		}
-		else if (config.sendCollectionLog() && lower.startsWith("new item added to your collection log:"))
-		{
-			type = "COLLECTION_LOG";
-		}
-		else if (config.sendClues() && lower.contains("treasure trail"))
-		{
-			type = "CLUE";
-		}
-		// Only a new best, not the "Personal best: x" line every timed kill prints.
-		else if (config.sendPersonalBests() && lower.contains("(new personal best)"))
-		{
-			type = "PERSONAL_BEST";
-		}
-
-		if (type != null)
-		{
-			JsonObject payload = payload(type);
+			JsonObject payload = payload("PET");
 			payload.addProperty("message", message);
 			send(payload, message, Collections.emptyList(), 0);
 		}
