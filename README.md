@@ -15,6 +15,14 @@ to one event or one organiser.
 | **Drops** | Any loot from a kill, chest or raid, above a value you choose |
 | **Pets** | When the "funny feeling" message appears |
 | **Collection log** | When a new entry is added |
+| **Levels** | When you advance a skill |
+| **Quests** | When you finish a quest |
+| **Combat achievements** | Tasks and achievement diaries |
+| **Clues** | Completed treasure trails |
+| **Personal bests** | New best times |
+
+Each of these has its own switch, so an event that only cares about drops can
+leave the rest off.
 
 Each message carries the item name and id, quantity, Grand Exchange value, what
 you killed, your RSN and the time — plus a screenshot, if you leave that on.
@@ -32,11 +40,21 @@ your organiser gives you one.
 
 That's it. Play normally and your drops turn up on the board.
 
+## Discord
+
+Paste a Discord webhook URL in the settings and big drops are announced in that
+channel as well, with the item, its value, what you killed and your screenshot.
+The threshold is yours to set and defaults to 1,000,000 gp, so only drops worth
+shouting about get posted. Leave the webhook blank and nothing goes to Discord.
+
 ## The side panel
 
-The plugin adds a panel to the RuneLite sidebar showing whether you are set up,
-and a list of everything it has sent this session with whether the board
-accepted it. Useful mid-event for checking your drop actually went through.
+The plugin adds a panel to the RuneLite sidebar showing:
+
+- whether you are set up, and which event you are connected to
+- how many tiles your team has done, if the board reports it
+- everything sent this session, with whether the board accepted it
+- a **Send again** button, for when the board was down at the time
 
 ## What the server receives
 
@@ -61,17 +79,31 @@ the other.
 }
 ```
 
-`type` is `LOOT`, `PET` or `COLLECTION_LOG`. A `PET` message carries only the
-common fields; a `COLLECTION_LOG` message adds `item`.
+`type` is `LOOT`, `PET`, `COLLECTION_LOG`, `LEVEL`, `QUEST`, `ACHIEVEMENT`,
+`CLUE` or `PERSONAL_BEST`. Only `LOOT` carries `source` and `items`; every other
+type carries the chat line that triggered it as `message`.
 
 The event password is sent as an `X-Event-Key` header, never in the URL, so it
 stays out of server logs and browser history.
+
+## What the panel asks for
+
+The plugin also sends a plain `GET` to the same URL, with the same header, to
+fill in the event name and progress. Answer with JSON:
+
+```json
+{ "event": "Battle Ship Bingo", "team": "Port", "done": 12, "total": 52 }
+```
+
+Every field is optional, and a board that does not answer at all simply leaves
+that part of the panel blank.
 
 ## Privacy
 
 - Nothing leaves your client until you enter an event URL
 - Only what is listed above is sent, and only to the address you paste in
 - Screenshots can be turned off while everything else keeps working
+- Discord posting is off until you paste in a webhook of your own
 - Your account is identified by RSN only
 
 ## Building it yourself

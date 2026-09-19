@@ -15,6 +15,7 @@ import java.util.Deque;
 import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -34,9 +35,12 @@ class VeritasEventsPanel extends PluginPanel
 	private final Deque<Sent> sent = new ArrayDeque<>();
 
 	private final JLabel status = new JLabel();
+	private final JLabel event = new JLabel();
+	private final JLabel progress = new JLabel();
+	private final JButton resend = new JButton("Send again");
 	private final JPanel entries = new JPanel();
 
-	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager)
+	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager, Runnable onResend)
 	{
 		this.config = config;
 		this.itemManager = itemManager;
@@ -54,8 +58,25 @@ class VeritasEventsPanel extends PluginPanel
 		title.setAlignmentX(Component.LEFT_ALIGNMENT);
 		status.setFont(FontManager.getRunescapeSmallFont());
 		status.setAlignmentX(Component.LEFT_ALIGNMENT);
+		event.setFont(FontManager.getRunescapeSmallFont());
+		event.setForeground(Color.WHITE);
+		event.setAlignmentX(Component.LEFT_ALIGNMENT);
+		progress.setFont(FontManager.getRunescapeSmallFont());
+		progress.setForeground(Color.GRAY);
+		progress.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		resend.setFont(FontManager.getRunescapeSmallFont());
+		resend.setAlignmentX(Component.LEFT_ALIGNMENT);
+		resend.setEnabled(false);
+		resend.setToolTipText("Send the last thing again, if the board missed it");
+		resend.addActionListener(e -> onResend.run());
+
 		header.add(title);
 		header.add(status);
+		header.add(event);
+		header.add(progress);
+		header.add(javax.swing.Box.createVerticalStrut(4));
+		header.add(resend);
 		header.add(javax.swing.Box.createVerticalStrut(8));
 
 		entries.setLayout(new BoxLayout(entries, BoxLayout.Y_AXIS));
@@ -78,6 +99,16 @@ class VeritasEventsPanel extends PluginPanel
 		});
 	}
 
+	/** Shows which event this is, and how far the player's team has got. */
+	void setEvent(String name, String tiles)
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			event.setText(name);
+			progress.setText(tiles);
+		});
+	}
+
 	/** Records one send. items is a flat list of id, quantity pairs. */
 	void record(String source, List<int[]> items, long value, boolean ok)
 	{
@@ -89,7 +120,11 @@ class VeritasEventsPanel extends PluginPanel
 				sent.removeLast();
 			}
 		}
-		SwingUtilities.invokeLater(this::redraw);
+		SwingUtilities.invokeLater(() ->
+		{
+			resend.setEnabled(true);
+			redraw();
+		});
 	}
 
 	private void redraw()

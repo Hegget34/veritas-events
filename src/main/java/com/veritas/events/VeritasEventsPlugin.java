@@ -36,6 +36,7 @@ import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.DrawManager;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.QuantityFormatter;
 import net.runelite.client.util.Text;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -45,6 +46,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 @Slf4j
 @PluginDescriptor(
@@ -56,8 +58,6 @@ public class VeritasEventsPlugin extends Plugin
 {
 	private static final MediaType JSON = MediaType.get("application/json");
 	private static final MediaType PNG = MediaType.get("image/png");
-	private static final String PET = "funny feeling like";
-	private static final String CLOG = "new item added to your collection log:";
 
 	@Inject
 	private Client client;
@@ -82,6 +82,7 @@ public class VeritasEventsPlugin extends Plugin
 
 	private VeritasEventsPanel panel;
 	private NavigationButton navButton;
+	private Runnable lastSend;
 
 	@Provides
 	VeritasEventsConfig provideConfig(ConfigManager configManager)
@@ -92,13 +93,14 @@ public class VeritasEventsPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		panel = new VeritasEventsPanel(config, itemManager);
+		panel = new VeritasEventsPanel(config, itemManager, this::resend);
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas Events")
 			.icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
 			.panel(panel)
 			.build();
 		clientToolbar.addNavigation(navButton);
+		refreshEvent();
 	}
 
 	@Override
@@ -115,6 +117,7 @@ public class VeritasEventsPlugin extends Plugin
 		if (VeritasEventsConfig.GROUP.equals(event.getGroup()) && panel != null)
 		{
 			panel.refresh();
+			refreshEvent();
 		}
 	}
 
@@ -167,16 +170,42 @@ public class VeritasEventsPlugin extends Plugin
 		String message = Text.removeTags(event.getMessage());
 		String lower = message.toLowerCase();
 
-		if (config.sendPets() && lower.contains(PET))
+		String type = null;
+		if (config.sendPets() && lower.contains("funny feeling like"))
 		{
-			send(payload("PET"), "Pet", Collections.emptyList(), 0);
+			type = "PET";
 		}
-		else if (config.sendCollectionLog() && lower.startsWith(CLOG))
+		else if (config.sendCollectionLog() && lower.startsWith("new item added to your collection log:"))
 		{
-			String item = message.substring(CLOG.length()).trim();
-			JsonObject payload = payload("COLLECTION_LOG");
-			payload.addProperty("item", item);
-			send(payload, item, Collections.emptyList(), 0);
+			type = "COLLECTION_LOG";
+		}
+		else if (config.sendLevels() && lower.contains("you've just advanced your"))
+		{
+			type = "LEVEL";
+		}
+		else if (config.sendQuests() && lower.contains("congratulations, you've completed a quest"))
+		{
+			type = "QUEST";
+		}
+		else if (config.sendAchievements()
+			&& (lower.contains("combat achievement task") || lower.contains("achievement diary")))
+		{
+			type = "ACHIEVEMENT";
+		}
+		else if (config.sendClues() && lower.contains("treasure trail"))
+		{
+			type = "CLUE";
+		}
+		else if (config.sendPersonalBests() && lower.contains("personal best"))
+		{
+			type = "PERSONAL_BEST";
+		}
+
+		if (type != null)
+		{
+			JsonObject payload = payload(type);
+			payload.addProperty("message", message);
+			send(payload, message, Collections.emptyList(), 0);
 		}
 	}
 
@@ -192,6 +221,7 @@ public class VeritasEventsPlugin extends Plugin
 
 	private void send(JsonObject payload, String source, List<int[]> icons, long value)
 	{
+		lastSend = () -> post(payload, source, icons, value, null);
 		if (config.sendScreenshot())
 		{
 			drawManager.requestNextFrameListener(image -> post(payload, source, icons, value, png(image)));
@@ -222,8 +252,77 @@ public class VeritasEventsPlugin extends Plugin
 		}
 	}
 
+	/** Sends the last thing again, for when the board was down at the time. */
+	private void resend()
+	{
+		Runnable again = lastSend;
+		if (again != null)
+		{
+			again.run();
+		}
+	}
+
+	/**
+	 * Asks the board what event this is and how the player's team is doing. The
+	 * board answers a plain GET; if it does not, the panel simply stays quiet.
+	 */
+	private void refreshEvent()
+	{
+		VeritasEventsPanel p = panel;
+		String url = config.eventUrl().trim();
+		if (p == null)
+		{
+			return;
+		}
+		p.setEvent("", "");
+		if (url.isEmpty())
+		{
+			return;
+		}
+
+		Request request = new Request.Builder()
+			.url(url)
+			.header("X-Event-Key", config.eventKey().trim())
+			.build();
+
+		okHttpClient.newCall(request).enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call call, IOException e)
+			{
+				log.debug("no event details", e);
+			}
+
+			@Override
+			public void onResponse(Call call, Response response)
+			{
+				try (ResponseBody body = response.body())
+				{
+					JsonObject details = gson.fromJson(body.string(), JsonObject.class);
+					String name = text(details, "event");
+					String team = text(details, "team");
+					p.setEvent(team.isEmpty() ? name : name + " - " + team,
+						details.has("done") && details.has("total")
+							? details.get("done").getAsInt() + " of " + details.get("total").getAsInt() + " tiles"
+							: "");
+				}
+				catch (Exception e)
+				{
+					log.debug("could not read event details", e);
+				}
+			}
+		});
+	}
+
+	private static String text(JsonObject object, String key)
+	{
+		return object.has(key) ? object.get(key).getAsString() : "";
+	}
+
 	private void post(JsonObject payload, String source, List<int[]> icons, long value, @Nullable byte[] screenshot)
 	{
+		discord(payload, source, value, screenshot);
+
 		String json = gson.toJson(payload);
 		RequestBody body = screenshot == null
 			? RequestBody.create(JSON, json)
@@ -255,6 +354,82 @@ public class VeritasEventsPlugin extends Plugin
 				response.close();
 			}
 		});
+	}
+
+	/**
+	 * Optional second post, straight to a Discord webhook, so a channel sees the
+	 * drop even if the event board is not watching.
+	 */
+	private void discord(JsonObject payload, String title, long value, @Nullable byte[] screenshot)
+	{
+		String hook = config.discordWebhook().trim();
+		if (hook.isEmpty()
+			|| ("LOOT".equals(payload.get("type").getAsString()) && value < config.discordMinimum()))
+		{
+			return;
+		}
+
+		JsonObject author = new JsonObject();
+		author.addProperty("name", payload.get("player").getAsString());
+
+		JsonObject embed = new JsonObject();
+		embed.addProperty("title", title);
+		embed.addProperty("color", 0xC8A000);
+		embed.add("author", author);
+		if (value > 0)
+		{
+			JsonObject field = new JsonObject();
+			field.addProperty("name", "Value");
+			field.addProperty("value", QuantityFormatter.quantityToStackSize(value) + " gp");
+			field.addProperty("inline", true);
+			JsonArray fields = new JsonArray();
+			fields.add(field);
+			if (payload.has("source"))
+			{
+				JsonObject from = new JsonObject();
+				from.addProperty("name", "From");
+				from.addProperty("value", payload.get("source").getAsString());
+				from.addProperty("inline", true);
+				fields.add(from);
+			}
+			embed.add("fields", fields);
+		}
+		if (screenshot != null)
+		{
+			JsonObject image = new JsonObject();
+			image.addProperty("url", "attachment://screenshot.png");
+			embed.add("image", image);
+		}
+
+		JsonArray embeds = new JsonArray();
+		embeds.add(embed);
+		JsonObject message = new JsonObject();
+		message.add("embeds", embeds);
+
+		String json = gson.toJson(message);
+		RequestBody body = screenshot == null
+			? RequestBody.create(JSON, json)
+			: new MultipartBody.Builder()
+				.setType(MultipartBody.FORM)
+				.addFormDataPart("payload_json", json)
+				.addFormDataPart("file", "screenshot.png", RequestBody.create(PNG, screenshot))
+				.build();
+
+		okHttpClient.newCall(new Request.Builder().url(hook).post(body).build())
+			.enqueue(new Callback()
+			{
+				@Override
+				public void onFailure(Call call, IOException e)
+				{
+					log.warn("could not reach Discord", e);
+				}
+
+				@Override
+				public void onResponse(Call call, Response response)
+				{
+					response.close();
+				}
+			});
 	}
 
 	private void report(String source, List<int[]> icons, long value, boolean ok)

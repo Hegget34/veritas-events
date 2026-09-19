@@ -15,102 +15,110 @@ public interface VeritasEventsConfig extends Config
 {
 	String GROUP = "veritasevents";
 
-	@ConfigSection(
-		name = "Event",
-		description = "Where your drops are sent",
-		position = 0
-	)
+	@ConfigSection(name = "Event", description = "Where your drops are sent", position = 0)
 	String eventSection = "event";
 
-	@ConfigSection(
-		name = "What to send",
-		description = "Choose which things get reported",
-		position = 1
-	)
+	@ConfigSection(name = "What to send", description = "Choose which things get reported", position = 1)
 	String sendSection = "send";
 
-	@ConfigItem(
-		keyName = "eventUrl",
-		name = "Event URL",
-		description = "The address your event organiser gave you. Leave blank to turn the plugin off.",
-		position = 0,
-		section = eventSection
-	)
+	@ConfigSection(name = "Discord", description = "Optionally post to a Discord channel too", position = 2)
+	String discordSection = "discord";
+
+	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 0, section = eventSection,
+		description = "The address your event organiser gave you. Leave blank to turn the plugin off.")
 	default String eventUrl()
 	{
 		return "";
 	}
 
-	@ConfigItem(
-		keyName = "eventKey",
-		name = "Event password",
-		description = "The password for this event. Keep it to yourself.",
-		position = 1,
-		section = eventSection,
-		secret = true
-	)
+	@ConfigItem(keyName = "eventKey", name = "Event password", position = 1, section = eventSection, secret = true,
+		description = "The password for this event. Keep it to yourself.")
 	default String eventKey()
 	{
 		return "";
 	}
 
-	@ConfigItem(
-		keyName = "sendScreenshot",
-		name = "Include a screenshot",
-		description = "Attach a picture of your screen, so staff can see the drop without you uploading one.",
-		position = 2,
-		section = eventSection
-	)
+	@ConfigItem(keyName = "sendScreenshot", name = "Include a screenshot", position = 2, section = eventSection,
+		description = "Attach a picture of your screen, so staff can see it without you uploading one.")
 	default boolean sendScreenshot()
 	{
 		return true;
 	}
 
-	@ConfigItem(
-		keyName = "sendLoot",
-		name = "Drops",
-		description = "Send items you receive from kills, chests and raids",
-		position = 0,
-		section = sendSection
-	)
+	@ConfigItem(keyName = "sendLoot", name = "Drops", position = 0, section = sendSection,
+		description = "Items from kills, chests and raids")
 	default boolean sendLoot()
 	{
 		return true;
 	}
 
-	@ConfigItem(
-		keyName = "sendPets",
-		name = "Pets",
-		description = "Send a message when you get a pet",
-		position = 1,
-		section = sendSection
-	)
+	@ConfigItem(keyName = "minimumValue", name = "Minimum drop value", position = 1, section = sendSection,
+		description = "Only send drops worth at least this much, in coins. Everything else is always sent.")
+	default int minimumValue()
+	{
+		return 0;
+	}
+
+	@ConfigItem(keyName = "sendPets", name = "Pets", position = 2, section = sendSection,
+		description = "When you get a pet")
 	default boolean sendPets()
 	{
 		return true;
 	}
 
-	@ConfigItem(
-		keyName = "sendCollectionLog",
-		name = "Collection log",
-		description = "Send new collection log entries",
-		position = 2,
-		section = sendSection
-	)
+	@ConfigItem(keyName = "sendCollectionLog", name = "Collection log", position = 3, section = sendSection,
+		description = "New collection log entries")
 	default boolean sendCollectionLog()
 	{
 		return true;
 	}
 
-	@ConfigItem(
-		keyName = "minimumValue",
-		name = "Minimum value",
-		description = "Only send drops worth at least this much, in coins. Pets and collection log entries are always sent.",
-		position = 3,
-		section = sendSection
-	)
-	default int minimumValue()
+	@ConfigItem(keyName = "sendLevels", name = "Levels", position = 4, section = sendSection,
+		description = "Levels and 99s")
+	default boolean sendLevels()
 	{
-		return 0;
+		return true;
+	}
+
+	@ConfigItem(keyName = "sendQuests", name = "Quests", position = 5, section = sendSection,
+		description = "Quest completions")
+	default boolean sendQuests()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "sendAchievements", name = "Combat achievements", position = 6, section = sendSection,
+		description = "Combat achievement tasks and diaries")
+	default boolean sendAchievements()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "sendClues", name = "Clues", position = 7, section = sendSection,
+		description = "Completed treasure trails")
+	default boolean sendClues()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "sendPersonalBests", name = "Personal bests", position = 8, section = sendSection,
+		description = "New personal best times")
+	default boolean sendPersonalBests()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "discordWebhook", name = "Discord webhook", position = 0, section = discordSection,
+		secret = true, description = "Optional. Paste a Discord webhook URL to post there as well as to the event.")
+	default String discordWebhook()
+	{
+		return "";
+	}
+
+	@ConfigItem(keyName = "discordMinimum", name = "Discord minimum value", position = 1, section = discordSection,
+		description = "Only announce drops worth at least this much to Discord. Other events always announce.")
+	default int discordMinimum()
+	{
+		return 1000000;
 	}
 }
