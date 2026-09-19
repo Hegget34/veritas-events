@@ -308,7 +308,7 @@ public class VeritasEventsPlugin extends Plugin
 		RequestBody body;
 		if (screenshot == null)
 		{
-			body = RequestBody.create(JSON, json);
+			body = RequestBody.create(json, JSON);
 		}
 		else
 		{
@@ -316,7 +316,7 @@ public class VeritasEventsPlugin extends Plugin
 				.setType(MultipartBody.FORM)
 				.addFormDataPart("payload_json", json)
 				.addFormDataPart("file", "screenshot.png",
-					RequestBody.create(MediaType.get("image/png"), screenshot))
+					RequestBody.create(screenshot, MediaType.get("image/png")))
 				.build();
 		}
 
