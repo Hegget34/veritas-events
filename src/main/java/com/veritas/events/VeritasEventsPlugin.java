@@ -13,6 +13,9 @@ import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
@@ -89,7 +92,7 @@ public class VeritasEventsPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		panel = new VeritasEventsPanel(config);
+		panel = new VeritasEventsPanel(config, itemManager);
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas Events")
 			.icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
@@ -124,12 +127,14 @@ public class VeritasEventsPlugin extends Plugin
 		}
 
 		JsonArray items = new JsonArray();
+		List<int[]> icons = new ArrayList<>();
 		long total = 0;
 
 		for (ItemStack stack : event.getItems())
 		{
 			long each = itemManager.getItemPrice(stack.getId());
 			total += each * stack.getQuantity();
+			icons.add(new int[]{stack.getId(), stack.getQuantity()});
 
 			JsonObject item = new JsonObject();
 			item.addProperty("id", stack.getId());
@@ -148,7 +153,7 @@ public class VeritasEventsPlugin extends Plugin
 		payload.addProperty("source", event.getName());
 		payload.addProperty("totalValue", total);
 		payload.add("items", items);
-		send(payload, items.get(0).getAsJsonObject().get("name").getAsString());
+		send(payload, event.getName(), icons, total);
 	}
 
 	@Subscribe
@@ -164,14 +169,14 @@ public class VeritasEventsPlugin extends Plugin
 
 		if (config.sendPets() && lower.contains(PET))
 		{
-			send(payload("PET"), "Pet");
+			send(payload("PET"), "Pet", Collections.emptyList(), 0);
 		}
 		else if (config.sendCollectionLog() && lower.startsWith(CLOG))
 		{
 			String item = message.substring(CLOG.length()).trim();
 			JsonObject payload = payload("COLLECTION_LOG");
 			payload.addProperty("item", item);
-			send(payload, item);
+			send(payload, item, Collections.emptyList(), 0);
 		}
 	}
 
@@ -185,15 +190,15 @@ public class VeritasEventsPlugin extends Plugin
 		return payload;
 	}
 
-	private void send(JsonObject payload, String describedAs)
+	private void send(JsonObject payload, String source, List<int[]> icons, long value)
 	{
 		if (config.sendScreenshot())
 		{
-			drawManager.requestNextFrameListener(image -> post(payload, describedAs, png(image)));
+			drawManager.requestNextFrameListener(image -> post(payload, source, icons, value, png(image)));
 		}
 		else
 		{
-			post(payload, describedAs, null);
+			post(payload, source, icons, value, null);
 		}
 	}
 
@@ -217,7 +222,7 @@ public class VeritasEventsPlugin extends Plugin
 		}
 	}
 
-	private void post(JsonObject payload, String describedAs, @Nullable byte[] screenshot)
+	private void post(JsonObject payload, String source, List<int[]> icons, long value, @Nullable byte[] screenshot)
 	{
 		String json = gson.toJson(payload);
 		RequestBody body = screenshot == null
@@ -240,24 +245,24 @@ public class VeritasEventsPlugin extends Plugin
 			public void onFailure(Call call, IOException e)
 			{
 				log.warn("could not reach the event board", e);
-				report(describedAs, false);
+				report(source, icons, value, false);
 			}
 
 			@Override
 			public void onResponse(Call call, Response response)
 			{
-				report(describedAs, response.isSuccessful());
+				report(source, icons, value, response.isSuccessful());
 				response.close();
 			}
 		});
 	}
 
-	private void report(String what, boolean ok)
+	private void report(String source, List<int[]> icons, long value, boolean ok)
 	{
 		VeritasEventsPanel p = panel;
 		if (p != null)
 		{
-			p.record(what, ok);
+			p.record(source, icons, value, ok);
 		}
 	}
 }
