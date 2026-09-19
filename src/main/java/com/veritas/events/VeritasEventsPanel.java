@@ -5,109 +5,276 @@
  */
 package com.veritas.events;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.components.ProgressBar;
+import net.runelite.client.ui.components.materialtabs.MaterialTab;
+import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
 import net.runelite.client.util.QuantityFormatter;
 
-/** Shows what the plugin has sent, laid out like the loot tracker. */
+/** The sidebar panel: what the event is, how the teams stand, and what has been sent. */
 class VeritasEventsPanel extends PluginPanel
 {
 	private static final int HISTORY = 15;
-	private static final Color BIG_DROP = new Color(0xC8, 0xA0, 0x00);
+	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 
 	private final VeritasEventsConfig config;
 	private final ItemManager itemManager;
 	private final Deque<Sent> sent = new ArrayDeque<>();
 
-	private final JLabel status = new JLabel();
-	private final JLabel event = new JLabel();
-	private final JLabel progress = new JLabel();
-	private final JButton resend = new JButton("Send again");
-	private final JPanel entries = new JPanel();
+	private int sends;
+	private int failures;
+	private long sessionLoot;
 
-	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager, Runnable onResend)
+	private final JLabel rsn = new JLabel();
+	private final JLabel status = new JLabel();
+
+	private final JPanel eventTab = column();
+	private final JPanel teamTab = column();
+	private final JPanel activityTab = column();
+
+	private final JButton resend = new JButton("Send again");
+	private final Runnable onRefresh;
+
+	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager,
+		@Nullable ImageIcon logo, Runnable onResend, Runnable onRefresh)
 	{
 		this.config = config;
 		this.itemManager = itemManager;
+		this.onRefresh = onRefresh;
 
 		setLayout(new BorderLayout());
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-
-		JPanel header = new JPanel();
-		header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
-		header.setBackground(ColorScheme.DARK_GRAY_COLOR);
-
-		JLabel title = new JLabel("Veritas Events");
-		title.setFont(FontManager.getRunescapeBoldFont());
-		title.setForeground(Color.WHITE);
-		title.setAlignmentX(Component.LEFT_ALIGNMENT);
-		status.setFont(FontManager.getRunescapeSmallFont());
-		status.setAlignmentX(Component.LEFT_ALIGNMENT);
-		event.setFont(FontManager.getRunescapeSmallFont());
-		event.setForeground(Color.WHITE);
-		event.setAlignmentX(Component.LEFT_ALIGNMENT);
-		progress.setFont(FontManager.getRunescapeSmallFont());
-		progress.setForeground(Color.GRAY);
-		progress.setAlignmentX(Component.LEFT_ALIGNMENT);
+		setBackground(ColorScheme.DARK_GRAY_COLOR);
 
 		resend.setFont(FontManager.getRunescapeSmallFont());
-		resend.setAlignmentX(Component.LEFT_ALIGNMENT);
 		resend.setEnabled(false);
 		resend.setToolTipText("Send the last thing again, if the board missed it");
 		resend.addActionListener(e -> onResend.run());
 
-		header.add(title);
-		header.add(status);
-		header.add(event);
-		header.add(progress);
-		header.add(javax.swing.Box.createVerticalStrut(4));
-		header.add(resend);
-		header.add(javax.swing.Box.createVerticalStrut(8));
+		JPanel top = new JPanel();
+		top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+		top.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		top.add(header(logo));
+		top.add(Box.createVerticalStrut(8));
 
-		entries.setLayout(new BoxLayout(entries, BoxLayout.Y_AXIS));
-		entries.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		JPanel display = new JPanel(new BorderLayout());
+		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		MaterialTabGroup tabs = new MaterialTabGroup(display);
+		tabs.setLayout(new GridLayout(1, 3, 6, 0));
+		tabs.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
+		MaterialTab first = new MaterialTab("Event", tabs, eventTab);
+		tabs.addTab(first);
+		tabs.addTab(new MaterialTab("Teams", tabs, teamTab));
+		tabs.addTab(new MaterialTab("Activity", tabs, activityTab));
+		tabs.select(first);
+		tabs.setAlignmentX(Component.LEFT_ALIGNMENT);
+		top.add(tabs);
 
-		add(header, BorderLayout.NORTH);
-		add(entries, BorderLayout.CENTER);
+		add(top, BorderLayout.NORTH);
+		add(display, BorderLayout.CENTER);
+
+		setEvent(null);
+		drawActivity();
 		refresh();
 	}
 
-	/** Updates the status line. */
+	/** Logo, plugin name, who you are playing as, and whether the board is reachable. */
+	private JPanel header(@Nullable ImageIcon logo)
+	{
+		JPanel header = new JPanel(new BorderLayout(6, 0));
+		header.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		header.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		if (logo != null)
+		{
+			header.add(new JLabel(logo), BorderLayout.WEST);
+		}
+
+		JPanel names = new JPanel();
+		names.setLayout(new BoxLayout(names, BoxLayout.Y_AXIS));
+		names.setBackground(ColorScheme.DARK_GRAY_COLOR);
+
+		JLabel title = new JLabel("Veritas Events");
+		title.setFont(FontManager.getRunescapeBoldFont());
+		title.setForeground(GOLD);
+		rsn.setFont(FontManager.getRunescapeSmallFont());
+		rsn.setForeground(Color.WHITE);
+		status.setFont(FontManager.getRunescapeSmallFont());
+
+		names.add(title);
+		names.add(rsn);
+		names.add(status);
+		header.add(names, BorderLayout.CENTER);
+		return header;
+	}
+
+	/** The name you are playing as, shown under the title. */
+	void setPlayer(String name)
+	{
+		SwingUtilities.invokeLater(() -> rsn.setText(name));
+	}
+
+	/** Updates the connection line. */
 	void refresh()
 	{
 		SwingUtilities.invokeLater(() ->
 		{
 			boolean ready = !config.eventUrl().trim().isEmpty();
-			status.setText(ready ? "Connected to your event" : "Paste your event URL in the settings");
+			status.setText("● " + (ready ? "Connected" : "No event set"));
 			status.setForeground(ready ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
-			redraw();
 		});
 	}
 
-	/** Shows which event this is, and how far the player's team has got. */
-	void setEvent(String name, String tiles)
+	/**
+	 * Fills the Event and Teams tabs from whatever the board reported. Every field
+	 * is optional, so a board that answers with nothing still leaves a usable panel.
+	 */
+	void setEvent(@Nullable JsonObject details)
 	{
 		SwingUtilities.invokeLater(() ->
 		{
-			event.setText(name);
-			progress.setText(tiles);
+			drawEvent(details);
+			drawTeams(details);
 		});
+	}
+
+	private void drawEvent(@Nullable JsonObject details)
+	{
+		eventTab.removeAll();
+
+		String name = text(details, "event");
+		if (name.isEmpty())
+		{
+			eventTab.add(hint(config.eventUrl().trim().isEmpty()
+				? "Paste the event URL your organiser gave you into the settings."
+				: "Connected, but this board is not reporting event details yet."));
+		}
+		else
+		{
+			JLabel heading = new JLabel(name);
+			heading.setFont(FontManager.getRunescapeBoldFont());
+			heading.setForeground(Color.WHITE);
+			heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+			eventTab.add(heading);
+
+			String phase = text(details, "phase");
+			if (!phase.isEmpty())
+			{
+				JLabel badge = new JLabel(phase.toUpperCase());
+				badge.setFont(FontManager.getRunescapeSmallFont());
+				badge.setForeground("live".equalsIgnoreCase(phase)
+					? ColorScheme.PROGRESS_COMPLETE_COLOR
+					: "ended".equalsIgnoreCase(phase) ? Color.GRAY : GOLD);
+				badge.setAlignmentX(Component.LEFT_ALIGNMENT);
+				eventTab.add(badge);
+			}
+
+			String left = remaining(details);
+			if (!left.isEmpty())
+			{
+				eventTab.add(line(left, Color.GRAY));
+			}
+
+			eventTab.add(Box.createVerticalStrut(8));
+
+			JPanel stats = new JPanel(new GridLayout(1, 2, 4, 0));
+			stats.setBackground(ColorScheme.DARK_GRAY_COLOR);
+			stats.setAlignmentX(Component.LEFT_ALIGNMENT);
+			stats.add(stat("Your team", orDash(text(details, "team"))));
+			stats.add(stat("Your drops", String.valueOf(sends)));
+			eventTab.add(stats);
+
+			if (has(details, "total"))
+			{
+				int done = number(details, "done");
+				int total = Math.max(1, number(details, "total"));
+				ProgressBar bar = new ProgressBar();
+				bar.setMaximumValue(total);
+				bar.setValue(done);
+				bar.setCenterLabel(done + " / " + total + " tiles");
+				bar.setLeftLabel("");
+				bar.setRightLabel("");
+				bar.setForeground(GOLD);
+				bar.setPreferredSize(new Dimension(0, 18));
+				bar.setAlignmentX(Component.LEFT_ALIGNMENT);
+				eventTab.add(Box.createVerticalStrut(8));
+				eventTab.add(bar);
+			}
+		}
+
+		eventTab.add(Box.createVerticalStrut(8));
+		JButton refreshButton = new JButton("Refresh");
+		refreshButton.setFont(FontManager.getRunescapeSmallFont());
+		refreshButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+		refreshButton.addActionListener(e -> onRefresh.run());
+		eventTab.add(refreshButton);
+
+		eventTab.revalidate();
+		eventTab.repaint();
+	}
+
+	private void drawTeams(@Nullable JsonObject details)
+	{
+		teamTab.removeAll();
+		String you = text(details, "team");
+
+		JsonArray standings = array(details, "standings");
+		if (standings == null)
+		{
+			teamTab.add(hint("Standings show here once the board reports them."));
+		}
+		else
+		{
+			teamTab.add(title("Standings"));
+			int rank = 1;
+			for (JsonElement element : standings)
+			{
+				JsonObject entry = element.getAsJsonObject();
+				String team = text(entry, "team");
+				teamTab.add(row(rank++ + ". " + team, number(entry, "tiles") + " tiles", team.equals(you)));
+			}
+		}
+
+		JsonArray top = array(details, "top");
+		if (top != null)
+		{
+			teamTab.add(Box.createVerticalStrut(8));
+			teamTab.add(title("Most drops"));
+			for (JsonElement element : top)
+			{
+				JsonObject entry = element.getAsJsonObject();
+				String player = text(entry, "player");
+				teamTab.add(row(player, number(entry, "drops") + " drops", player.equals(rsn.getText())));
+			}
+		}
+
+		teamTab.revalidate();
+		teamTab.repaint();
 	}
 
 	/** Records one send. items is a flat list of id, quantity pairs. */
@@ -120,38 +287,55 @@ class VeritasEventsPanel extends PluginPanel
 			{
 				sent.removeLast();
 			}
+			sends++;
+			if (!ok)
+			{
+				failures++;
+			}
+			sessionLoot += value;
 		}
 		SwingUtilities.invokeLater(() ->
 		{
 			resend.setEnabled(true);
-			redraw();
+			drawActivity();
 		});
 	}
 
-	private void redraw()
+	private void drawActivity()
 	{
-		entries.removeAll();
+		activityTab.removeAll();
+
+		JPanel counts = new JPanel(new GridLayout(1, 3, 4, 0));
+		counts.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		counts.setAlignmentX(Component.LEFT_ALIGNMENT);
+		counts.add(stat("Sent", String.valueOf(sends)));
+		counts.add(stat("Failed", String.valueOf(failures)));
+		counts.add(stat("Loot", QuantityFormatter.quantityToStackSize(sessionLoot)));
+		activityTab.add(counts);
+
+		activityTab.add(Box.createVerticalStrut(6));
+		resend.setAlignmentX(Component.LEFT_ALIGNMENT);
+		activityTab.add(resend);
+		activityTab.add(Box.createVerticalStrut(8));
+
 		synchronized (sent)
 		{
 			if (sent.isEmpty())
 			{
-				JLabel none = new JLabel("Nothing sent yet");
-				none.setFont(FontManager.getRunescapeSmallFont());
-				none.setForeground(Color.GRAY);
-				none.setAlignmentX(Component.LEFT_ALIGNMENT);
-				entries.add(none);
+				activityTab.add(hint("Nothing sent yet."));
 			}
 			else
 			{
 				for (Sent entry : sent)
 				{
-					entries.add(box(entry));
-					entries.add(javax.swing.Box.createVerticalStrut(4));
+					activityTab.add(box(entry));
+					activityTab.add(Box.createVerticalStrut(4));
 				}
 			}
 		}
-		entries.revalidate();
-		entries.repaint();
+
+		activityTab.revalidate();
+		activityTab.repaint();
 	}
 
 	/** One sent drop: source and value on top, item icons underneath. */
@@ -174,7 +358,7 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			JLabel value = new JLabel(QuantityFormatter.quantityToStackSize(entry.value) + " gp");
 			value.setFont(FontManager.getRunescapeSmallFont());
-			value.setForeground(entry.value >= config.bigDropValue() ? BIG_DROP : Color.GRAY);
+			value.setForeground(entry.value >= config.bigDropValue() ? GOLD : Color.GRAY);
 			top.add(value, BorderLayout.EAST);
 		}
 		box.add(top, BorderLayout.NORTH);
@@ -195,12 +379,142 @@ class VeritasEventsPanel extends PluginPanel
 
 		if (!entry.ok)
 		{
-			JLabel failed = new JLabel("Not accepted by the board");
-			failed.setFont(FontManager.getRunescapeSmallFont());
-			failed.setForeground(ColorScheme.PROGRESS_ERROR_COLOR);
-			box.add(failed, BorderLayout.SOUTH);
+			box.add(line("Not accepted by the board", ColorScheme.PROGRESS_ERROR_COLOR), BorderLayout.SOUTH);
 		}
 		return box;
+	}
+
+	// ---- small builders, so the tabs above stay readable ----
+
+	private static JPanel column()
+	{
+		JPanel panel = new JPanel();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+		panel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		return panel;
+	}
+
+	/** A figure over a caption, the way the loot tracker shows its totals. */
+	private static JPanel stat(String caption, String value)
+	{
+		JPanel panel = new JPanel();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		panel.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+
+		JLabel top = new JLabel(value, SwingConstants.CENTER);
+		top.setFont(FontManager.getRunescapeSmallFont());
+		top.setForeground(GOLD);
+		top.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+		JLabel bottom = new JLabel(caption, SwingConstants.CENTER);
+		bottom.setFont(FontManager.getRunescapeSmallFont());
+		bottom.setForeground(Color.GRAY);
+		bottom.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+		panel.add(top);
+		panel.add(bottom);
+		return panel;
+	}
+
+	/** A name on the left and a figure on the right, picked out if it is yours. */
+	private static JPanel row(String left, String right, boolean mine)
+	{
+		JPanel panel = new JPanel(new BorderLayout());
+		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		panel.setBorder(BorderFactory.createEmptyBorder(3, 6, 3, 6));
+		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JLabel name = new JLabel(left);
+		name.setFont(FontManager.getRunescapeSmallFont());
+		name.setForeground(mine ? GOLD : Color.WHITE);
+
+		JLabel figure = new JLabel(right);
+		figure.setFont(FontManager.getRunescapeSmallFont());
+		figure.setForeground(Color.GRAY);
+
+		panel.add(name, BorderLayout.WEST);
+		panel.add(figure, BorderLayout.EAST);
+		return panel;
+	}
+
+	private static JLabel title(String text)
+	{
+		JLabel label = new JLabel(text);
+		label.setFont(FontManager.getRunescapeBoldFont());
+		label.setForeground(Color.WHITE);
+		label.setAlignmentX(Component.LEFT_ALIGNMENT);
+		label.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
+		return label;
+	}
+
+	private static JLabel line(String text, Color colour)
+	{
+		JLabel label = new JLabel(text);
+		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setForeground(colour);
+		label.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return label;
+	}
+
+	/** Wrapped grey text, for the empty states. */
+	private static JLabel hint(String text)
+	{
+		JLabel label = line("<html><body style='width:190px'>" + text + "</body></html>", Color.GRAY);
+		label.setBorder(BorderFactory.createEmptyBorder(4, 0, 4, 0));
+		return label;
+	}
+
+	private static String orDash(String value)
+	{
+		return value.isEmpty() ? "-" : value;
+	}
+
+	private static boolean has(@Nullable JsonObject object, String key)
+	{
+		return object != null && object.has(key) && !object.get(key).isJsonNull();
+	}
+
+	private static String text(@Nullable JsonObject object, String key)
+	{
+		return has(object, key) ? object.get(key).getAsString() : "";
+	}
+
+	private static int number(@Nullable JsonObject object, String key)
+	{
+		try
+		{
+			return has(object, key) ? object.get(key).getAsInt() : 0;
+		}
+		catch (RuntimeException e)
+		{
+			return 0;
+		}
+	}
+
+	@Nullable
+	private static JsonArray array(@Nullable JsonObject object, String key)
+	{
+		return has(object, key) && object.get(key).isJsonArray() ? object.getAsJsonArray(key) : null;
+	}
+
+	/** "Ends in 2d 4h", from a millisecond timestamp. */
+	private static String remaining(@Nullable JsonObject details)
+	{
+		if (!has(details, "endsAt"))
+		{
+			return "";
+		}
+		long left = details.get("endsAt").getAsLong() - System.currentTimeMillis();
+		if (left <= 0)
+		{
+			return "Finished";
+		}
+		long hours = left / 3600000L;
+		return hours >= 24
+			? "Ends in " + (hours / 24) + "d " + (hours % 24) + "h"
+			: hours >= 1 ? "Ends in " + hours + "h " + (left / 60000L % 60) + "m"
+			: "Ends in " + Math.max(1, left / 60000L) + "m";
 	}
 
 	private static class Sent

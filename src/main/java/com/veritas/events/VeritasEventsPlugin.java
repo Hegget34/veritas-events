@@ -19,11 +19,14 @@ import java.util.List;
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
+import javax.swing.ImageIcon;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.Subscribe;
@@ -92,10 +95,11 @@ public class VeritasEventsPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		panel = new VeritasEventsPanel(config, itemManager, this::resend);
+		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
+		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon), this::resend, this::refreshEvent);
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas Events")
-			.icon(ImageUtil.loadImageResource(getClass(), "icon.png"))
+			.icon(icon)
 			.panel(panel)
 			.build();
 		clientToolbar.addNavigation(navButton);
@@ -108,6 +112,16 @@ public class VeritasEventsPlugin extends Plugin
 		clientToolbar.removeNavigation(navButton);
 		panel = null;
 		navButton = null;
+	}
+
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		Player local = client.getLocalPlayer();
+		if (event.getGameState() == GameState.LOGGED_IN && local != null && panel != null)
+		{
+			panel.setPlayer(Text.sanitize(local.getName()));
+		}
 	}
 
 	@Subscribe
@@ -243,7 +257,7 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			return;
 		}
-		p.setEvent("", "");
+		p.setEvent(null);
 		if (url.isEmpty())
 		{
 			return;
@@ -267,13 +281,7 @@ public class VeritasEventsPlugin extends Plugin
 			{
 				try (ResponseBody body = response.body())
 				{
-					JsonObject details = gson.fromJson(body.string(), JsonObject.class);
-					String name = text(details, "event");
-					String team = text(details, "team");
-					p.setEvent(team.isEmpty() ? name : name + " - " + team,
-						details.has("done") && details.has("total")
-							? details.get("done").getAsInt() + " of " + details.get("total").getAsInt() + " tiles"
-							: "");
+					p.setEvent(gson.fromJson(body.string(), JsonObject.class));
 				}
 				catch (Exception e)
 				{
@@ -283,10 +291,6 @@ public class VeritasEventsPlugin extends Plugin
 		});
 	}
 
-	private static String text(JsonObject object, String key)
-	{
-		return object.has(key) ? object.get(key).getAsString() : "";
-	}
 
 	private void post(JsonObject payload, String source, List<int[]> icons, long value, @Nullable byte[] screenshot)
 	{

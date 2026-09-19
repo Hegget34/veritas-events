@@ -42,12 +42,18 @@ it quietly with everything else. It defaults to 1,000,000 gp.
 
 ## The side panel
 
-The plugin adds a panel to the RuneLite sidebar showing:
+The sidebar panel has three tabs:
 
-- whether you are set up, and which event you are connected to
-- how many tiles your team has done, if the board reports it
-- everything sent this session, with whether the board accepted it
-- a **Send again** button, for when the board was down at the time
+- **Event** - the event name, whether it is live, how long is left, your team,
+  and a bar showing how many tiles your team has done
+- **Teams** - the standings, and who has sent the most drops, with your team
+  and your own name picked out
+- **Activity** - how much you have sent this session, everything that went out
+  with whether the board accepted it, and a **Send again** button for when the
+  board was down at the time
+
+All of it comes from the board, so an event that reports nothing still leaves a
+panel that works - it just shows less.
 
 ## What the server receives
 
@@ -81,15 +87,29 @@ stays out of server logs and browser history.
 
 ## What the panel asks for
 
-The plugin also sends a plain `GET` to the same URL, with the same header, to
-fill in the event name and progress. Answer with JSON:
+The plugin also sends a plain `GET` to the same URL, with the same header, and
+fills the panel from the answer:
 
 ```json
-{ "event": "Battle Ship Bingo", "team": "Port", "done": 12, "total": 52 }
+{
+  "event": "Battle Ship Bingo",
+  "phase": "live",
+  "endsAt": 1789200000000,
+  "team": "Port",
+  "done": 12,
+  "total": 52,
+  "standings": [
+    { "team": "Port", "tiles": 12 },
+    { "team": "Starboard", "tiles": 9 }
+  ],
+  "top": [
+    { "player": "I Jinx I", "drops": 14 }
+  ]
+}
 ```
 
-Every field is optional, and a board that does not answer at all simply leaves
-that part of the panel blank.
+Every field is optional. A board that answers with nothing, or does not answer
+at all, still leaves a working panel - those parts just stay empty.
 
 ## Privacy
 
