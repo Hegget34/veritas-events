@@ -43,6 +43,18 @@ class VeritasEventsPanel extends PluginPanel
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
 	private static final int BAR_HEIGHT = 16;
+	private static final int BUTTON_HEIGHT = 26;
+
+	private static final String[][] COMMUNITY = {
+		{"Discord", "https://discord.gg/veritascc"},
+		{"Clan website", "https://osrs-bingo-arbd.onrender.com/"},
+	};
+
+	private static final String[][] TRACKING = {
+		{"DropTracker", "https://www.droptracker.io/groups/356"},
+		{"TempleOSRS", "https://templeosrs.com/groups/overview.php?id=2418"},
+		{"Wise Old Man", "https://wiseoldman.net/groups/13727"},
+	};
 
 	private final VeritasEventsConfig config;
 	private final ItemManager itemManager;
@@ -55,6 +67,7 @@ class VeritasEventsPanel extends PluginPanel
 	private final JLabel rsn = new JLabel();
 	private final JLabel status = new JLabel();
 
+	private final JPanel homeTab = column();
 	private final JPanel eventTab = column();
 	private final JPanel teamTab = column();
 	private final JPanel clanTab = column();
@@ -96,7 +109,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		for (String view : new String[]{"Event", "Teams", "Clan", "Sent"})
+		for (String view : new String[]{"Home", "Event", "Teams", "Clan", "Loot Tracker"})
 		{
 			viewSelect.addItem(view);
 		}
@@ -128,11 +141,58 @@ class VeritasEventsPanel extends PluginPanel
 		refresh();
 	}
 
-	/** Shows whichever of the four views is chosen. */
+	/**
+	 * The front page: who we are and the places the clan keeps its business.
+	 * The links are built in so this reads properly before any board answers,
+	 * and the board can add to it underneath.
+	 */
+	private void drawHome(@Nullable JsonObject details)
+	{
+		homeTab.removeAll();
+
+		JLabel name = new JLabel("Veritas");
+		name.setFont(FontManager.getRunescapeBoldFont().deriveFont(22f));
+		name.setForeground(GOLD);
+		name.setAlignmentX(Component.LEFT_ALIGNMENT);
+		homeTab.add(name);
+		homeTab.add(line("Old School RuneScape clan", Color.GRAY));
+		homeTab.add(Box.createVerticalStrut(12));
+
+		homeTab.add(caption("Community"));
+		links(homeTab, COMMUNITY);
+		homeTab.add(Box.createVerticalStrut(12));
+
+		homeTab.add(caption("Tracking"));
+		links(homeTab, TRACKING);
+
+		blocks(homeTab, array(details, "home"));
+
+		homeTab.revalidate();
+		homeTab.repaint();
+	}
+
+	private void links(JPanel into, String[][] links)
+	{
+		for (String[] entry : links)
+		{
+			JButton button = link(entry[0], entry[1]);
+			if (button != null)
+			{
+				into.add(button);
+				into.add(Box.createVerticalStrut(4));
+			}
+		}
+	}
+
+	/** Shows whichever of the five views is chosen. */
 	private void showView()
 	{
 		int chosen = viewSelect.getSelectedIndex();
-		JPanel view = chosen == 1 ? teamTab : chosen == 2 ? clanTab : chosen == 3 ? activityTab : eventTab;
+		JPanel view = chosen == 1 ? eventTab
+			: chosen == 2 ? teamTab
+			: chosen == 3 ? clanTab
+			: chosen == 4 ? activityTab
+			: homeTab;
 
 		display.removeAll();
 		display.add(view, BorderLayout.NORTH);
@@ -232,6 +292,7 @@ class VeritasEventsPanel extends PluginPanel
 		SwingUtilities.invokeLater(() ->
 		{
 			lastDetails = details;
+			drawHome(details);
 			drawEvent(details);
 			drawTeams(details);
 			drawPages(details);
@@ -316,7 +377,8 @@ class VeritasEventsPanel extends PluginPanel
 		button.setFont(FontManager.getRunescapeFont());
 		button.setToolTipText(url);
 		button.setAlignmentX(Component.LEFT_ALIGNMENT);
-		button.setMaximumSize(new Dimension(Integer.MAX_VALUE, button.getPreferredSize().height));
+		button.setMaximumSize(new Dimension(Integer.MAX_VALUE, BUTTON_HEIGHT));
+		button.setPreferredSize(new Dimension(Integer.MAX_VALUE, BUTTON_HEIGHT));
 		button.addActionListener(e -> LinkBrowser.browse(url));
 		return button;
 	}

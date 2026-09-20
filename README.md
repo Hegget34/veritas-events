@@ -42,16 +42,19 @@ it quietly with everything else. It defaults to 1,000,000 gp.
 
 ## The side panel
 
-The sidebar panel has four tabs:
+The sidebar panel is picked from a dropdown:
 
+- **Home** - the clan, and the places it keeps its business: Discord, the clan
+  website, DropTracker, TempleOSRS and Wise Old Man. Built in, so it reads
+  properly before any board answers, and a board can add to it with `home`
 - **Event** - the event name, whether it is live, how long is left, your team,
   and a bar showing how many tiles your team has done
 - **Teams** - the standings, and who has sent the most drops, with your team
   and your own name picked out
 - **Clan** - whatever pages the board publishes, picked from a dropdown
-- **Sent** - how much you have sent this session, everything that went out with
-  whether the board accepted it, and a **Send again** button for when the board
-  was down at the time
+- **Loot Tracker** - how much you have sent this session, everything that went
+  out with whether the board accepted it, and a **Send again** button for when
+  the board was down at the time
 
 All of it comes from the board, so an event that reports nothing still leaves a
 panel that works - it just shows less.
