@@ -1051,6 +1051,7 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			JsonObject item = element.getAsJsonObject();
 			boolean found = has(item, "found") && item.get("found").getAsBoolean();
+			boolean pending = !found && has(item, "pending") && item.get("pending").getAsBoolean();
 
 			JPanel line = new JPanel(new BorderLayout(6, 0));
 			line.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -1070,9 +1071,13 @@ class VeritasEventsPanel extends PluginPanel
 			name.setForeground(found ? Color.GRAY : Color.WHITE);
 			line.add(name, BorderLayout.CENTER);
 
-			JLabel note = new JLabel(found ? "Complete" : text(item, "note"));
+			String said = found ? "Complete" : pending ? "Pending" : text(item, "note");
+			JLabel note = new JLabel(said);
 			note.setFont(FontManager.getRunescapeFont());
-			note.setForeground(found ? ColorScheme.PROGRESS_COMPLETE_COLOR : GOLD);
+			note.setForeground(found ? ColorScheme.PROGRESS_COMPLETE_COLOR
+				: pending ? ColorScheme.PROGRESS_INPROGRESS_COLOR : GOLD);
+			note.setToolTipText(pending ? "Found by " + text(item, "note")
+				+ ", waiting for the host to approve it" : null);
 			line.add(note, BorderLayout.EAST);
 
 			line.setMaximumSize(new Dimension(Integer.MAX_VALUE, line.getPreferredSize().height));

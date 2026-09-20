@@ -7,6 +7,7 @@ package com.veritas.events;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.inject.Provides;
 import java.awt.Graphics2D;
@@ -17,6 +18,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
@@ -118,6 +121,13 @@ public class VeritasEventsPlugin extends Plugin
 	private ScheduledFuture<?> refresher;
 	private String boardPassword = "";
 
+	/**
+	 * The items the running event is after, lower cased. While the board
+	 * publishes a list, only drops containing one of them are sent; everything
+	 * else stays on this machine in the loot tracker where it belongs.
+	 */
+	private Set<String> wanted = Collections.emptySet();
+
 	@Provides
 	VeritasEventsConfig provideConfig(ConfigManager configManager)
 	{
@@ -176,6 +186,27 @@ public class VeritasEventsPlugin extends Plugin
 		}
 	}
 
+	/**
+	 * Whether this drop is worth sending. With no list published, everything
+	 * goes; with one, only drops holding something on it.
+	 */
+	private boolean onTheList(JsonArray items)
+	{
+		if (wanted.isEmpty())
+		{
+			return true;
+		}
+		for (JsonElement element : items)
+		{
+			JsonObject item = element.getAsJsonObject();
+			if (item.has("name") && wanted.contains(item.get("name").getAsString().toLowerCase()))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	@Subscribe
 	public void onServerNpcLoot(ServerNpcLoot event)
 	{
@@ -228,7 +259,8 @@ public class VeritasEventsPlugin extends Plugin
 			return;
 		}
 
-		if (!config.sendLoot() || config.eventUrl().trim().isEmpty() || total < config.minimumValue())
+		if (!config.sendLoot() || config.eventUrl().trim().isEmpty() || total < config.minimumValue()
+			|| !onTheList(items))
 		{
 			report(source, icons, total, VeritasEventsPanel.KEPT);
 			return;
@@ -427,6 +459,26 @@ public class VeritasEventsPlugin extends Plugin
 		return false;
 	}
 
+	/** The names in the board's "wanted" list, if it published one. */
+	private static Set<String> wantedFrom(@Nullable JsonObject details)
+	{
+		if (details == null || !details.has("wanted") || !details.get("wanted").isJsonArray())
+		{
+			return Collections.emptySet();
+		}
+
+		Set<String> names = new HashSet<>();
+		for (JsonElement element : details.getAsJsonArray("wanted"))
+		{
+			JsonObject item = element.getAsJsonObject();
+			if (item.has("name"))
+			{
+				names.add(item.get("name").getAsString().toLowerCase());
+			}
+		}
+		return names;
+	}
+
 	/** The start of whatever came back, so a misconfigured board says so itself. */
 	private static String summary(String answer)
 	{
@@ -471,6 +523,7 @@ public class VeritasEventsPlugin extends Plugin
 			return;
 		}
 		boardPassword = "";
+		wanted = Collections.emptySet();
 		p.setEvent(null, null);
 		if (url.isEmpty())
 		{
@@ -501,6 +554,7 @@ public class VeritasEventsPlugin extends Plugin
 					JsonObject details = gson.fromJson(answer, JsonObject.class);
 					boardPassword = details != null && details.has("password")
 						? details.get("password").getAsString() : "";
+					wanted = wantedFrom(details);
 					p.setEvent(details, null);
 				}
 				catch (Exception e)
