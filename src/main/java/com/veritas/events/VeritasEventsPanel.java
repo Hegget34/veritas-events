@@ -53,6 +53,8 @@ class VeritasEventsPanel extends PluginPanel
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
 	private static final int BAR_HEIGHT = 16;
 	private static final int BUTTON_HEIGHT = 26;
+	private static final float HEADING = 17f;
+	private static final float FIGURE = 20f;
 	private static final String[] VIEWS = {"Home", "Event", "Clan stats", "Loot Tracker"};
 
 	/** Ordered worst last, so merging a group keeps the worst outcome. */
@@ -575,7 +577,7 @@ class VeritasEventsPanel extends PluginPanel
 		else
 		{
 			JLabel heading = new JLabel(name);
-			heading.setFont(FontManager.getRunescapeBoldFont());
+			heading.setFont(FontManager.getRunescapeBoldFont().deriveFont(HEADING + 1f));
 			heading.setForeground(Color.WHITE);
 			heading.setAlignmentX(Component.LEFT_ALIGNMENT);
 			eventTab.add(heading);
@@ -598,13 +600,13 @@ class VeritasEventsPanel extends PluginPanel
 				eventTab.add(line(left, Color.GRAY));
 			}
 
-			eventTab.add(Box.createVerticalStrut(8));
+			eventTab.add(Box.createVerticalStrut(12));
 			eventTab.add(stats(details));
 
 			JsonObject progress = object(details, "progress");
 			if (progress != null && has(progress, "total"))
 			{
-				eventTab.add(Box.createVerticalStrut(8));
+				eventTab.add(Box.createVerticalStrut(12));
 				eventTab.add(cells(orElse(text(progress, "label"), "Progress"),
 					number(progress, "done") + " / " + number(progress, "total"), GOLD, Color.WHITE));
 				eventTab.add(bar(progress));
@@ -868,21 +870,25 @@ class VeritasEventsPanel extends PluginPanel
 					break;
 
 				case "stat":
+					into.add(Box.createVerticalStrut(6));
 					JLabel figure = line(text(block, "value"), GOLD);
-					figure.setFont(FontManager.getRunescapeBoldFont());
+					figure.setFont(FontManager.getRunescapeBoldFont().deriveFont(FIGURE));
 					into.add(figure);
 					into.add(line(text(block, "label"), Color.GRAY));
+					into.add(Box.createVerticalStrut(6));
 					break;
 
 				case "table":
+					into.add(Box.createVerticalStrut(2));
 					into.add(table(block));
+					into.add(Box.createVerticalStrut(6));
 					break;
 
 				case "link":
 					JButton button = link(text(block, "label"), text(block, "url"));
 					if (button != null)
 					{
-						into.add(Box.createVerticalStrut(2));
+						into.add(Box.createVerticalStrut(4));
 						into.add(button);
 					}
 					break;
@@ -1049,7 +1055,7 @@ class VeritasEventsPanel extends PluginPanel
 
 			line.setMaximumSize(new Dimension(Integer.MAX_VALUE, line.getPreferredSize().height));
 			activityTab.add(line);
-			activityTab.add(Box.createVerticalStrut(2));
+			activityTab.add(Box.createVerticalStrut(4));
 		}
 	}
 
@@ -1092,7 +1098,7 @@ class VeritasEventsPanel extends PluginPanel
 		for (Sent entry : entries)
 		{
 			activityTab.add(box(entry));
-			activityTab.add(Box.createVerticalStrut(4));
+			activityTab.add(Box.createVerticalStrut(6));
 		}
 	}
 
@@ -1218,7 +1224,7 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		JPanel panel = new JPanel(new BorderLayout());
 		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		panel.setBorder(BorderFactory.createEmptyBorder(3, 6, 3, 6));
+		panel.setBorder(BorderFactory.createEmptyBorder(5, 6, 5, 6));
 		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		JLabel name = new JLabel(left);
@@ -1241,10 +1247,10 @@ class VeritasEventsPanel extends PluginPanel
 	private static JLabel title(String text)
 	{
 		JLabel label = new JLabel(text);
-		label.setFont(FontManager.getRunescapeBoldFont());
+		label.setFont(FontManager.getRunescapeBoldFont().deriveFont(HEADING));
 		label.setForeground(Color.WHITE);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
-		label.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
+		label.setBorder(BorderFactory.createEmptyBorder(2, 0, 7, 0));
 		return label;
 	}
 
@@ -1254,6 +1260,7 @@ class VeritasEventsPanel extends PluginPanel
 		label.setFont(FontManager.getRunescapeFont());
 		label.setForeground(colour);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
+		label.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
 		return label;
 	}
 
