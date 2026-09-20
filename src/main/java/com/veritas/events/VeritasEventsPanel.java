@@ -33,8 +33,6 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.ProgressBar;
-import net.runelite.client.ui.components.materialtabs.MaterialTab;
-import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.QuantityFormatter;
 
@@ -61,7 +59,9 @@ class VeritasEventsPanel extends PluginPanel
 	private final JPanel clanTab = column();
 	private final JPanel activityTab = column();
 
+	private final JComboBox<String> viewSelect = new JComboBox<>();
 	private final JComboBox<String> pageSelect = new JComboBox<>();
+	private final JPanel display = new JPanel(new BorderLayout());
 	private final JPanel pageContent = column();
 	private JsonObject lastDetails;
 	private boolean fillingPages;
@@ -91,29 +91,21 @@ class VeritasEventsPanel extends PluginPanel
 		top.add(header(logo));
 		top.add(Box.createVerticalStrut(8));
 
-		JPanel display = new JPanel(new BorderLayout());
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		MaterialTabGroup tabs = new MaterialTabGroup(display);
-		tabs.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 0));
-		tabs.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
-		MaterialTab first = new MaterialTab("Event", tabs, eventTab);
-		tabs.addTab(first);
-		tabs.addTab(new MaterialTab("Teams", tabs, teamTab));
-		tabs.addTab(new MaterialTab("Clan", tabs, clanTab));
-		tabs.addTab(new MaterialTab("Sent", tabs, activityTab));
-		tabs.select(first);
-		tabs.setAlignmentX(Component.LEFT_ALIGNMENT);
-		top.add(tabs);
+
+		for (String view : new String[]{"Event", "Teams", "Clan", "Sent"})
+		{
+			viewSelect.addItem(view);
+		}
+		style(viewSelect);
+		viewSelect.addActionListener(e -> showView());
+		top.add(viewSelect);
 
 		add(top, BorderLayout.NORTH);
 		add(display, BorderLayout.CENTER);
+		showView();
 
-		pageSelect.setFont(FontManager.getRunescapeFont());
-		pageSelect.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		pageSelect.setForeground(Color.WHITE);
-		pageSelect.setFocusable(false);
-		pageSelect.setAlignmentX(Component.LEFT_ALIGNMENT);
-		pageSelect.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+		style(pageSelect);
 		pageSelect.addActionListener(e ->
 		{
 			if (!fillingPages)
@@ -128,6 +120,30 @@ class VeritasEventsPanel extends PluginPanel
 		setEvent(null);
 		drawActivity();
 		refresh();
+	}
+
+	/** Shows whichever of the four views is chosen. */
+	private void showView()
+	{
+		int chosen = viewSelect.getSelectedIndex();
+		JPanel view = chosen == 1 ? teamTab : chosen == 2 ? clanTab : chosen == 3 ? activityTab : eventTab;
+
+		display.removeAll();
+		display.add(view, BorderLayout.NORTH);
+		display.revalidate();
+		display.repaint();
+	}
+
+	/** The two choosers, dressed to match the rest of the panel. */
+	private static void style(JComboBox<String> combo)
+	{
+		combo.setFont(FontManager.getRunescapeFont());
+		combo.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		combo.setForeground(Color.WHITE);
+		combo.setFocusable(false);
+		combo.setAlignmentX(Component.LEFT_ALIGNMENT);
+		combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
+		combo.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
 	}
 
 	/** Logo, plugin name, who you are playing as, and whether the board is reachable. */
@@ -147,7 +163,7 @@ class VeritasEventsPanel extends PluginPanel
 		names.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
 		JLabel title = new JLabel("Veritas Events");
-		title.setFont(FontManager.getRunescapeBoldFont());
+		title.setFont(FontManager.getRunescapeBoldFont().deriveFont(18f));
 		title.setForeground(GOLD);
 		rsn.setFont(FontManager.getRunescapeFont());
 		rsn.setForeground(Color.WHITE);
@@ -236,6 +252,8 @@ class VeritasEventsPanel extends PluginPanel
 			if (progress != null && has(progress, "total"))
 			{
 				eventTab.add(Box.createVerticalStrut(8));
+				eventTab.add(cells(orElse(text(progress, "label"), "Progress"),
+					number(progress, "done") + " / " + number(progress, "total"), GOLD, Color.WHITE));
 				eventTab.add(bar(progress));
 			}
 
@@ -302,12 +320,12 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		int done = number(progress, "done");
 		int total = Math.max(1, number(progress, "total"));
-		String label = text(progress, "label");
-
 		ProgressBar bar = new ProgressBar();
 		bar.setMaximumValue(total);
 		bar.setValue(done);
-		bar.setCenterLabel(done + " / " + total + (label.isEmpty() ? "" : " " + label));
+		// The centre label only gets a third of the width and would be cut off,
+		// so the wording goes on its own line above the bar instead.
+		bar.setCenterLabel(bar.getPercentage() + "%");
 		bar.setLeftLabel("");
 		bar.setRightLabel("");
 		bar.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
