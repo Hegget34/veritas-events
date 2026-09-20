@@ -126,6 +126,10 @@ class VeritasEventsPanel extends PluginPanel
 
 	private final JComboBox<String> viewSelect = new JComboBox<>();
 	private final JPanel pageTab = column();
+	private final JPanel pageContent = column();
+	private final JComboBox<String> subSelect = new JComboBox<>();
+	private final JLabel subCaption = caption("Page");
+	private int openPage = -1;
 	private String problem = "";
 	private final JPanel display = new JPanel(new BorderLayout());
 	private JsonObject lastDetails;
@@ -157,6 +161,15 @@ class VeritasEventsPanel extends PluginPanel
 		resend.setEnabled(false);
 		resend.setToolTipText("Send the last thing again, if the board missed it");
 		resend.addActionListener(e -> onResend.run());
+
+		style(subSelect);
+		subSelect.addActionListener(e ->
+		{
+			if (!fillingPages)
+			{
+				drawPageContent();
+			}
+		});
 
 		style(lootSelect);
 		lootSelect.addActionListener(e ->
@@ -743,24 +756,82 @@ class VeritasEventsPanel extends PluginPanel
 		showView();
 	}
 
-	/** One of the board's pages. */
+	/**
+	 * One of the board's pages. A page may carry pages of its own, in which case
+	 * a second chooser appears for them, so related pages can be grouped without
+	 * the top chooser growing forever.
+	 */
 	private void drawBoardPage(int index)
 	{
+		openPage = index;
 		pageTab.removeAll();
 
-		JsonArray pages = array(lastDetails, "pages");
-		if (pages == null || index >= pages.size())
+		JsonObject page = pageAt(index);
+		JsonArray within = array(page, "pages");
+		if (within != null)
 		{
-			pageTab.add(hint(!problem.isEmpty() ? problem
+			String open = (String) subSelect.getSelectedItem();
+			fillingPages = true;
+			subSelect.removeAllItems();
+			for (JsonElement element : within)
+			{
+				subSelect.addItem(text(element.getAsJsonObject(), "name"));
+			}
+			if (open != null)
+			{
+				subSelect.setSelectedItem(open);
+			}
+			fillingPages = false;
+
+			pageTab.add(subCaption);
+			pageTab.add(subSelect);
+			pageTab.add(Box.createVerticalStrut(12));
+		}
+
+		pageTab.add(pageContent);
+		drawPageContent();
+
+		pageTab.revalidate();
+		pageTab.repaint();
+	}
+
+	private void drawPageContent()
+	{
+		pageContent.removeAll();
+
+		JsonObject page = pageAt(openPage);
+		if (page == null)
+		{
+			pageContent.add(hint(!problem.isEmpty() ? problem
 				: "This page is no longer being published."));
 		}
 		else
 		{
-			blocks(pageTab, array(pages.get(index).getAsJsonObject(), "blocks"));
+			JsonArray within = array(page, "pages");
+			if (within == null)
+			{
+				blocks(pageContent, array(page, "blocks"));
+			}
+			else
+			{
+				int chosen = Math.max(0, subSelect.getSelectedIndex());
+				if (chosen < within.size())
+				{
+					blocks(pageContent, array(within.get(chosen).getAsJsonObject(), "blocks"));
+				}
+			}
 		}
 
-		pageTab.revalidate();
-		pageTab.repaint();
+		pageContent.revalidate();
+		pageContent.repaint();
+	}
+
+	@Nullable
+	private JsonObject pageAt(int index)
+	{
+		JsonArray pages = array(lastDetails, "pages");
+		return pages == null || index < 0 || index >= pages.size()
+			? null : pages.get(index).getAsJsonObject();
 	}
 
 	/**
@@ -971,7 +1042,7 @@ class VeritasEventsPanel extends PluginPanel
 			name.setForeground(found ? Color.GRAY : Color.WHITE);
 			line.add(name, BorderLayout.CENTER);
 
-			JLabel note = new JLabel(found ? "found" : text(item, "note"));
+			JLabel note = new JLabel(found ? "Complete" : text(item, "note"));
 			note.setFont(FontManager.getRunescapeFont());
 			note.setForeground(found ? ColorScheme.PROGRESS_COMPLETE_COLOR : GOLD);
 			line.add(note, BorderLayout.EAST);
@@ -1061,11 +1132,12 @@ class VeritasEventsPanel extends PluginPanel
 		box.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		JPanel top = new JPanel(new BorderLayout());
-		top.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		top.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		top.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
 
 		JLabel source = new JLabel(entry.count > 1 ? entry.source + " x " + entry.count : entry.source);
 		source.setFont(FontManager.getRunescapeFont());
-		source.setForeground(entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR : Color.WHITE);
+		source.setForeground(entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR : BLUE);
 		top.add(source, BorderLayout.WEST);
 
 		if (entry.value > 0)
