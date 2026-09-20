@@ -16,6 +16,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,6 +39,8 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.PlayerLootReceived;
+import net.runelite.client.events.ServerNpcLoot;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
@@ -45,6 +48,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.loottracker.LootReceived;
+import net.runelite.http.api.loottracker.LootRecordType;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.DrawManager;
 import net.runelite.client.ui.NavigationButton;
@@ -173,13 +177,36 @@ public class VeritasEventsPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onServerNpcLoot(ServerNpcLoot event)
+	{
+		loot(event.getComposition().getName(), event.getItems());
+	}
+
+	@Subscribe
+	public void onPlayerLootReceived(PlayerLootReceived event)
+	{
+		loot(Text.sanitize(event.getPlayer().getName()), event.getItems());
+	}
+
+	@Subscribe
 	public void onLootReceived(LootReceived event)
+	{
+		// Kills come straight from the client above, so this is only for what
+		// RuneLite's Loot Tracker alone can see: chests, raids, pickpocketing.
+		if (event.getType() != LootRecordType.NPC && event.getType() != LootRecordType.PLAYER)
+		{
+			loot(event.getName(), event.getItems());
+		}
+	}
+
+	/** Everything is tracked; only some of it is worth sending anywhere. */
+	private void loot(String source, Collection<ItemStack> stacks)
 	{
 		JsonArray items = new JsonArray();
 		List<int[]> icons = new ArrayList<>();
 		long total = 0;
 
-		for (ItemStack stack : event.getItems())
+		for (ItemStack stack : stacks)
 		{
 			long each = itemManager.getItemPrice(stack.getId());
 			total += each * stack.getQuantity();
@@ -198,19 +225,18 @@ public class VeritasEventsPlugin extends Plugin
 			return;
 		}
 
-		// Everything is tracked; only some of it is worth sending anywhere.
 		if (!config.sendLoot() || config.eventUrl().trim().isEmpty() || total < config.minimumValue())
 		{
-			report(event.getName(), icons, total, VeritasEventsPanel.KEPT);
+			report(source, icons, total, VeritasEventsPanel.KEPT);
 			return;
 		}
 
 		JsonObject payload = payload("LOOT");
-		payload.addProperty("source", event.getName());
+		payload.addProperty("source", source);
 		payload.addProperty("totalValue", total);
 		payload.addProperty("big", total >= config.bigDropValue());
 		payload.add("items", items);
-		send(payload, event.getName(), icons, total);
+		send(payload, source, icons, total);
 	}
 
 	@Subscribe

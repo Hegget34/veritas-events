@@ -25,11 +25,15 @@ you killed, your RSN and the time — plus a screenshot, if you leave that on.
 Nothing is sent until you paste in an event URL, so the plugin is inert until
 your organiser gives you one.
 
-## Before anything else
+## Where drops come from
 
-Drops reach this plugin as RuneLite's own `LootReceived` event, and only
-RuneLite's **Loot Tracker** plugin ever posts it. Leave that one switched on or
-nothing will arrive here, however the rest is set up. It is on by default.
+Kills are taken straight from the client, through the same events RuneLite's
+own loot tracking is built on, so you can switch RuneLite's **Loot Tracker**
+plugin off and use this one instead.
+
+Chests, raids and pickpocketing are the exception. Those are worked out by the
+Loot Tracker plugin rather than sent by the game, so leave it on if your event
+counts that sort of loot. The panel says so when it is off.
 
 ## Setup
 

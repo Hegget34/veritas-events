@@ -1013,8 +1013,8 @@ class VeritasEventsPanel extends PluginPanel
 		if (entries.isEmpty())
 		{
 			activityTab.add(hint(lootTrackerOff.getAsBoolean()
-				? "Switch on RuneLite's own Loot Tracker plugin. Drops are seen "
-					+ "through it, so with it off nothing reaches here."
+				? "No drops yet. Kills are tracked either way, but chest and raid "
+					+ "loot needs RuneLite's own Loot Tracker plugin, which is off."
 				: "No drops yet."));
 			return;
 		}
