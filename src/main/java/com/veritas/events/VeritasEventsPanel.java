@@ -46,7 +46,7 @@ class VeritasEventsPanel extends PluginPanel
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
 	private static final int BAR_HEIGHT = 16;
 	private static final int BUTTON_HEIGHT = 26;
-	private static final String STATS = "Stats";
+	private static final String[] VIEWS = {"Home", "Event", "Clan stats", "Loot Tracker"};
 
 	private static final String[] SKILLS = {
 		"overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic",
@@ -107,15 +107,12 @@ class VeritasEventsPanel extends PluginPanel
 	private boolean statsAsked;
 	private final BiConsumer<String, String> onGained;
 	private final JPanel eventTab = column();
-	private final JPanel clanTab = column();
 	private final JPanel activityTab = column();
 
 	private final JComboBox<String> viewSelect = new JComboBox<>();
-	private final JComboBox<String> pageSelect = new JComboBox<>();
-	private final JLabel pageCaption = caption("Page");
+	private final JPanel pageTab = column();
 	private String problem = "";
 	private final JPanel display = new JPanel(new BorderLayout());
-	private final JPanel pageContent = column();
 	private JsonObject lastDetails;
 	private boolean fillingPages;
 
@@ -150,12 +147,15 @@ class VeritasEventsPanel extends PluginPanel
 
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		for (String view : new String[]{"Home", "Event", "Clan", "Loot Tracker"})
-		{
-			viewSelect.addItem(view);
-		}
+		drawViews(null);
 		style(viewSelect);
-		viewSelect.addActionListener(e -> showView());
+		viewSelect.addActionListener(e ->
+		{
+			if (!fillingPages)
+			{
+				showView();
+			}
+		});
 		top.add(caption("View"));
 		top.add(viewSelect);
 		top.add(Box.createVerticalStrut(12));
@@ -163,19 +163,6 @@ class VeritasEventsPanel extends PluginPanel
 		add(top, BorderLayout.NORTH);
 		add(display, BorderLayout.CENTER);
 		showView();
-
-		style(pageSelect);
-		pageSelect.addActionListener(e ->
-		{
-			if (!fillingPages)
-			{
-				drawPage();
-			}
-		});
-		clanTab.add(pageCaption);
-		clanTab.add(pageSelect);
-		clanTab.add(Box.createVerticalStrut(10));
-		clanTab.add(pageContent);
 
 		buildStats();
 		setEvent(null, null);
@@ -331,14 +318,37 @@ class VeritasEventsPanel extends PluginPanel
 		}
 	}
 
-	/** Shows whichever of the five views is chosen. */
+	/** Shows whichever view is chosen, including the board's own pages. */
 	private void showView()
 	{
 		int chosen = viewSelect.getSelectedIndex();
-		JPanel view = chosen == 1 ? eventTab
-			: chosen == 2 ? clanTab
-			: chosen == 3 ? activityTab
-			: homeTab;
+		JPanel view;
+
+		if (chosen == 1)
+		{
+			view = eventTab;
+		}
+		else if (chosen == 2)
+		{
+			view = statsTab;
+			if (!statsAsked)
+			{
+				askGained(metric);
+			}
+		}
+		else if (chosen == 3)
+		{
+			view = activityTab;
+		}
+		else if (chosen >= VIEWS.length)
+		{
+			drawBoardPage(chosen - VIEWS.length);
+			view = pageTab;
+		}
+		else
+		{
+			view = homeTab;
+		}
 
 		display.removeAll();
 		display.add(view, BorderLayout.NORTH);
@@ -441,7 +451,7 @@ class VeritasEventsPanel extends PluginPanel
 			lastDetails = details;
 			drawHome(details);
 			drawEvent(details);
-			drawPages(details);
+			drawViews(details);
 		});
 	}
 
@@ -613,61 +623,52 @@ class VeritasEventsPanel extends PluginPanel
 		}
 	}
 
-	/** Fills the page chooser: Stats, then whatever the board publishes. */
-	private void drawPages(@Nullable JsonObject details)
+	/** Lists the fixed views, then a view per page the board publishes. */
+	private void drawViews(@Nullable JsonObject details)
 	{
-		String open = (String) pageSelect.getSelectedItem();
+		String open = (String) viewSelect.getSelectedItem();
 		JsonArray pages = array(details, "pages");
 
 		fillingPages = true;
-		pageSelect.removeAllItems();
-		pageSelect.addItem(STATS);
+		viewSelect.removeAllItems();
+		for (String view : VIEWS)
+		{
+			viewSelect.addItem(view);
+		}
 		if (pages != null)
 		{
 			for (JsonElement element : pages)
 			{
-				pageSelect.addItem(text(element.getAsJsonObject(), "name"));
+				viewSelect.addItem(text(element.getAsJsonObject(), "name"));
 			}
 		}
 		if (open != null)
 		{
-			pageSelect.setSelectedItem(open);
+			viewSelect.setSelectedItem(open);
 		}
 		fillingPages = false;
 
-		drawPage();
+		showView();
 	}
 
-	/** Draws whichever page is chosen. */
-	private void drawPage()
+	/** One of the board's pages. */
+	private void drawBoardPage(int index)
 	{
-		pageContent.removeAll();
+		pageTab.removeAll();
 
-		if (pageSelect.getSelectedIndex() <= 0)
+		JsonArray pages = array(lastDetails, "pages");
+		if (pages == null || index >= pages.size())
 		{
-			pageContent.add(statsTab);
-			if (!statsAsked)
-			{
-				askGained(metric);
-			}
+			pageTab.add(hint(!problem.isEmpty() ? problem
+				: "This page is no longer being published."));
 		}
 		else
 		{
-			JsonArray pages = array(lastDetails, "pages");
-			int index = pageSelect.getSelectedIndex() - 1;
-			if (pages == null || index >= pages.size())
-			{
-				pageContent.add(hint(!problem.isEmpty() ? problem
-					: "Clan pages show here once the board reports them."));
-			}
-			else
-			{
-				blocks(pageContent, array(pages.get(index).getAsJsonObject(), "blocks"));
-			}
+			blocks(pageTab, array(pages.get(index).getAsJsonObject(), "blocks"));
 		}
 
-		pageContent.revalidate();
-		pageContent.repaint();
+		pageTab.revalidate();
+		pageTab.repaint();
 	}
 
 	/**
