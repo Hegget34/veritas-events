@@ -179,6 +179,7 @@ public class VeritasEventsPlugin extends Plugin
 	@Subscribe
 	public void onServerNpcLoot(ServerNpcLoot event)
 	{
+		log.debug("npc loot: {}", event.getComposition().getName());
 		loot(event.getComposition().getName(), event.getItems());
 	}
 
@@ -219,6 +220,8 @@ public class VeritasEventsPlugin extends Plugin
 			item.addProperty("priceEach", each);
 			items.add(item);
 		}
+
+		log.debug("loot from {}: {} items worth {}", source, items.size(), total);
 
 		if (items.size() == 0)
 		{
