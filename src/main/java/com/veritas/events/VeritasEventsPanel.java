@@ -9,11 +9,11 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.BasicStroke;
 import java.awt.FlowLayout;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
@@ -575,15 +575,11 @@ class VeritasEventsPanel extends PluginPanel
 		SwingUtilities.invokeLater(() ->
 		{
 			rsn.setText(name);
-			useHistoryOf(name);
+			// RuneLite keeps settings per account, so this reads the right
+			// totals back without us knowing anything about who is playing.
+			load();
+			drawActivity();
 		});
-	}
-
-	/** Reads this account's totals back. RuneLite keeps them per account. */
-	private void useHistoryOf(String name)
-	{
-		load();
-		drawActivity();
 	}
 
 	/** Updates the connection line. */

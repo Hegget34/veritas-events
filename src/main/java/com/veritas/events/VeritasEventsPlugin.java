@@ -18,10 +18,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -41,23 +41,23 @@ import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.PlayerLootReceived;
 import net.runelite.client.events.ServerNpcLoot;
-import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.plugins.Plugin;
-import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.loottracker.LootReceived;
-import net.runelite.http.api.loottracker.LootRecordType;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.DrawManager;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.Text;
+import net.runelite.http.api.loottracker.LootRecordType;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.MediaType;
@@ -295,7 +295,6 @@ public class VeritasEventsPlugin extends Plugin
 			send(payload, message, Collections.emptyList(), 0);
 		}
 	}
-
 
 	private JsonObject payload(String type)
 	{
@@ -570,7 +569,6 @@ public class VeritasEventsPlugin extends Plugin
 		});
 	}
 
-
 	private void post(JsonObject payload, String source, List<int[]> icons, long value, @Nullable byte[] screenshot)
 	{
 		String json = gson.toJson(payload);
@@ -606,7 +604,6 @@ public class VeritasEventsPlugin extends Plugin
 			}
 		});
 	}
-
 
 	private void report(String source, List<int[]> icons, long value, int state)
 	{
