@@ -44,7 +44,7 @@ class VeritasEventsOverlay extends OverlayPanel
 		// Alt and drag moves it; this puts it in the overlay menu so it can be
 		// put back again without hunting for where it went.
 		getMenuEntries().add(new OverlayMenuEntry(
-			MenuAction.RUNELITE_OVERLAY_CONFIG, OverlayManager.OPTION_CONFIGURE, "Veritas Events overlay"));
+			MenuAction.RUNELITE_OVERLAY_CONFIG, OverlayManager.OPTION_CONFIGURE, "Veritas overlay"));
 	}
 
 	@Override

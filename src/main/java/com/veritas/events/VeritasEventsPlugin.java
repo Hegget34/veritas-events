@@ -62,8 +62,8 @@ import okhttp3.ResponseBody;
 
 @Slf4j
 @PluginDescriptor(
-	name = "Veritas Events",
-	description = "Sends your drops to a clan event board",
+	name = "Veritas",
+	description = "Clan pages, stats and event drops",
 	tags = {"veritas", "event", "bingo", "loot", "clan"}
 )
 public class VeritasEventsPlugin extends Plugin
@@ -123,7 +123,7 @@ public class VeritasEventsPlugin extends Plugin
 		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon),
 			this::resend, this::refreshEvent, this::gained);
 		navButton = NavigationButton.builder()
-			.tooltip("Veritas Events")
+			.tooltip("Veritas")
 			.icon(icon)
 			.panel(panel)
 			.build();

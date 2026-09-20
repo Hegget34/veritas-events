@@ -337,11 +337,6 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		homeTab.removeAll();
 
-		JLabel name = new JLabel("Veritas");
-		name.setFont(FontManager.getRunescapeBoldFont().deriveFont(22f));
-		name.setForeground(GOLD);
-		name.setAlignmentX(Component.LEFT_ALIGNMENT);
-		homeTab.add(name);
 		homeTab.add(line("Old School RuneScape clan", Color.GRAY));
 		homeTab.add(Box.createVerticalStrut(12));
 
@@ -461,7 +456,7 @@ class VeritasEventsPanel extends PluginPanel
 		names.setLayout(new BoxLayout(names, BoxLayout.Y_AXIS));
 		names.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		JLabel title = new JLabel("Veritas Events");
+		JLabel title = new JLabel("Veritas");
 		title.setFont(FontManager.getRunescapeBoldFont().deriveFont(18f));
 		title.setForeground(GOLD);
 		rsn.setFont(FontManager.getRunescapeFont());

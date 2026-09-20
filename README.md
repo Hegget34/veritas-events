@@ -1,7 +1,8 @@
-# Veritas Events
+# Veritas
 
-A RuneLite plugin that sends your drops to a Veritas clan event board, so you
-don't have to screenshot and type them in by hand.
+A RuneLite plugin for the Veritas Old School RuneScape clan: the clan's
+pages and stats in the sidebar, and drops sent straight to whatever event is
+running, so nobody has to screenshot and type them in by hand.
 
 Built for the Veritas OSRS clan. The event URL is just a setting, so **anyone
 in the clan can host an event** — stand up a board, hand out its URL and
@@ -26,7 +27,7 @@ your organiser gives you one.
 
 ## Setup
 
-1. Install **Veritas Events** from the RuneLite Plugin Hub
+1. Install **Veritas** from the RuneLite Plugin Hub
 2. Open its settings (the cog next to the plugin name)
 3. Paste the **Event URL** your organiser gave you
 4. Paste the **Event key** for that event
