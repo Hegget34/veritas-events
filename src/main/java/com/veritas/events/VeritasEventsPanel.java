@@ -19,14 +19,6 @@ import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.Reader;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -47,6 +39,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -60,7 +53,8 @@ import net.runelite.client.util.QuantityFormatter;
 class VeritasEventsPanel extends PluginPanel
 {
 	/** Kept across restarts, so a long event is not lost by logging out. */
-	private static final int HISTORY = 1000;
+	private static final int HISTORY = 500;
+	private static final String DROPS = "drops_";
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
 	private static final int BAR_HEIGHT = 16;
@@ -114,12 +108,14 @@ class VeritasEventsPanel extends PluginPanel
 
 	private final VeritasEventsConfig config;
 	private final ItemManager itemManager;
+	/** This session, one entry per kill. */
 	private final Deque<Sent> sent = new ArrayDeque<>();
-	private final Gson gson;
-	private final File folder;
 
-	/** Null until we know which account is playing; each one keeps its own. */
-	private File store;
+	/** Every session, added up per source. Survives restarts and machines. */
+	private final Map<String, Sent> history = new LinkedHashMap<>();
+
+	private final Gson gson;
+	private final ConfigManager configManager;
 
 	private final JLabel rsn = new JLabel();
 	private final JLabel status = new JLabel();
@@ -161,12 +157,12 @@ class VeritasEventsPanel extends PluginPanel
 	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager,
 		@Nullable ImageIcon logo, Runnable onResend, Runnable onRefresh,
 		BiConsumer<String, String> onGained, BooleanSupplier lootTrackerOff,
-		Gson gson, File folder)
+		Gson gson, ConfigManager configManager)
 	{
 		this.config = config;
 		this.itemManager = itemManager;
 		this.gson = gson;
-		this.folder = folder;
+		this.configManager = configManager;
 		this.onRefresh = onRefresh;
 		this.onGained = onGained;
 		this.lootTrackerOff = lootTrackerOff;
@@ -583,37 +579,11 @@ class VeritasEventsPanel extends PluginPanel
 		});
 	}
 
-	/**
-	 * Switches to that account's own history. Two accounts on one machine keep
-	 * separate lists, and logging in somewhere else picks the right one up.
-	 */
+	/** Reads this account's totals back. RuneLite keeps them per account. */
 	private void useHistoryOf(String name)
 	{
-		File next = new File(folder, "loot-" + fileSafe(name) + ".json");
-		if (next.equals(store))
-		{
-			return;
-		}
-
-		store = next;
-		synchronized (sent)
-		{
-			sent.clear();
-		}
 		load();
 		drawActivity();
-	}
-
-	/** An RSN as a file name: letters and digits, anything else an underscore. */
-	private static String fileSafe(String name)
-	{
-		StringBuilder safe = new StringBuilder();
-		for (int i = 0; i < name.length(); i++)
-		{
-			char c = name.charAt(i);
-			safe.append(Character.isLetterOrDigit(c) ? Character.toLowerCase(c) : '_');
-		}
-		return safe.length() == 0 ? "unknown" : safe.toString();
 	}
 
 	/** Updates the connection line. */
@@ -1026,15 +996,31 @@ class VeritasEventsPanel extends PluginPanel
 	 */
 	void record(String source, List<int[]> items, long value, int state)
 	{
+		Sent one = new Sent(source, items, value, state);
 		synchronized (sent)
 		{
-			sent.addFirst(new Sent(source, items, value, state));
+			sent.addFirst(one);
 			while (sent.size() > HISTORY)
 			{
 				sent.removeLast();
 			}
 		}
-		save();
+
+		Sent total;
+		synchronized (history)
+		{
+			total = history.get(source);
+			if (total == null)
+			{
+				total = one.copy();
+				history.put(source, total);
+			}
+			else
+			{
+				total.merge(one);
+			}
+		}
+		save(total);
 		SwingUtilities.invokeLater(() ->
 		{
 			resend.setEnabled(true);
@@ -1139,9 +1125,9 @@ class VeritasEventsPanel extends PluginPanel
 		int kills = 0;
 		int sends = 0;
 		long loot = 0;
-		synchronized (sent)
+		synchronized (history)
 		{
-			for (Sent one : sent)
+			for (Sent one : history.values())
 			{
 				kills += one.count;
 				sends += one.state == SENT ? one.count : 0;
@@ -1193,10 +1179,10 @@ class VeritasEventsPanel extends PluginPanel
 	/** How many drops are on record. */
 	private int count()
 	{
-		synchronized (sent)
+		synchronized (history)
 		{
 			int total = 0;
-			for (Sent one : sent)
+			for (Sent one : history.values())
 			{
 				total += one.count;
 			}
@@ -1204,94 +1190,80 @@ class VeritasEventsPanel extends PluginPanel
 		}
 	}
 
-	/** Reads back what previous sessions recorded. */
+	/**
+	 * Reads this account's totals back.
+	 *
+	 * They live in RuneLite's own per account settings, which is where its loot
+	 * tracker keeps its own. Two accounts on one machine stay apart without us
+	 * doing anything, and anyone signed in to a RuneLite account finds their
+	 * totals waiting on another computer, because RuneLite syncs its settings.
+	 */
 	private void load()
 	{
-		if (store == null || !store.exists())
+		String profile = configManager.getRSProfileKey();
+		if (profile == null)
 		{
 			return;
 		}
-		try (Reader reader = new InputStreamReader(new FileInputStream(store), StandardCharsets.UTF_8))
+
+		synchronized (history)
 		{
-			Sent[] kept = gson.fromJson(reader, Sent[].class);
-			if (kept != null)
+			history.clear();
+			for (String full : configManager.getRSProfileConfigurationKeys(
+				VeritasEventsConfig.GROUP, profile, DROPS))
 			{
-				synchronized (sent)
+				String key = full.substring(full.lastIndexOf(DROPS));
+				try
 				{
-					for (Sent one : kept)
+					Sent one = gson.fromJson(
+						configManager.getConfiguration(VeritasEventsConfig.GROUP, profile, key),
+						Sent.class);
+					if (one != null && one.source != null && one.items != null)
 					{
-						if (one != null && one.source != null && one.items != null)
-						{
-							sent.addLast(one);
-						}
+						history.put(one.source, one);
 					}
+				}
+				catch (Exception e)
+				{
+					log.debug("could not read {}", key, e);
 				}
 			}
 		}
-		catch (Exception e)
-		{
-			// A half written or older file is not worth failing to start over.
-			log.debug("could not read the loot history", e);
-		}
 	}
 
-	/** Writes the history out, so a restart does not lose it. */
-	private void save()
+	/** Writes one source's running total back. */
+	private void save(Sent total)
 	{
-		if (store == null)
-		{
-			// Nothing is recorded before we know whose drops these are.
-			return;
-		}
-
-		Sent[] keeping;
-		synchronized (sent)
-		{
-			keeping = sent.toArray(new Sent[0]);
-		}
 		try
 		{
-			File parent = store.getParentFile();
-			if (parent != null && !parent.exists() && !parent.mkdirs())
-			{
-				return;
-			}
-			try (Writer writer = new OutputStreamWriter(
-				new FileOutputStream(store), StandardCharsets.UTF_8))
-			{
-				gson.toJson(keeping, writer);
-			}
+			configManager.setRSProfileConfiguration(
+				VeritasEventsConfig.GROUP, DROPS + total.source, gson.toJson(total));
 		}
 		catch (Exception e)
 		{
-			log.debug("could not write the loot history", e);
+			log.debug("could not write the total for {}", total.source, e);
 		}
 	}
 
-	/** Every send, or one line per source with the kills added up. */
+	/**
+	 * Grouped shows every session added up per source; ungrouped shows this
+	 * session kill by kill. Only the totals are kept, so older kills are only
+	 * ever available added up, the same way RuneLite's loot tracker works.
+	 */
 	private List<Sent> entries()
 	{
-		synchronized (sent)
+		if (!grouped)
 		{
-			if (!grouped)
+			synchronized (sent)
 			{
 				return new ArrayList<>(sent);
 			}
-
-			Map<String, Sent> bySource = new LinkedHashMap<>();
-			for (Sent one : sent)
-			{
-				Sent already = bySource.get(one.source);
-				if (already == null)
-				{
-					bySource.put(one.source, one.copy());
-				}
-				else
-				{
-					already.merge(one);
-				}
-			}
-			return new ArrayList<>(bySource.values());
+		}
+		synchronized (history)
+		{
+			List<Sent> all = new ArrayList<>(history.values());
+			all.sort((a, b) -> Long.compare(b.value, a.value));
+			return all;
 		}
 	}
 

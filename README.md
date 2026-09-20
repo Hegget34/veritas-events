@@ -69,8 +69,10 @@ so every page is one click rather than two.
 - **Loot Tracker** - every drop you receive, whether or not it was sent
   anywhere, grouped by what dropped it or listed kill by kill, collapsed or
   not, with a **Send again** button for when the board was down at the time.
-  Kept per account in `.runelite/veritas/`, so it is still there next time you
-  start the client, and two accounts on one machine keep separate lists. While an event is running, a chooser at the top switches
+  Totals per source are kept in RuneLite's own per account settings, the same
+  place its loot tracker keeps its own, so they are still there next time you
+  start the client, two accounts stay apart, and anyone signed in to a RuneLite
+  account finds them waiting on another computer. While an event is running, a chooser at the top switches
   to the items that event is after
 
 All of it comes from the board, so an event that reports nothing still leaves a
