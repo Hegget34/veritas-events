@@ -41,6 +41,7 @@ class VeritasEventsPanel extends PluginPanel
 {
 	private static final int HISTORY = 15;
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
+	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
 	private static final int BAR_HEIGHT = 16;
 
 	private final VeritasEventsConfig config;
@@ -89,7 +90,9 @@ class VeritasEventsPanel extends PluginPanel
 		top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
 		top.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		top.add(header(logo));
-		top.add(Box.createVerticalStrut(8));
+		top.add(Box.createVerticalStrut(10));
+		top.add(rule());
+		top.add(Box.createVerticalStrut(10));
 
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
@@ -99,7 +102,9 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		style(viewSelect);
 		viewSelect.addActionListener(e -> showView());
+		top.add(caption("View"));
 		top.add(viewSelect);
+		top.add(Box.createVerticalStrut(12));
 
 		add(top, BorderLayout.NORTH);
 		add(display, BorderLayout.CENTER);
@@ -113,8 +118,9 @@ class VeritasEventsPanel extends PluginPanel
 				drawPage();
 			}
 		});
+		clanTab.add(caption("Page"));
 		clanTab.add(pageSelect);
-		clanTab.add(Box.createVerticalStrut(6));
+		clanTab.add(Box.createVerticalStrut(10));
 		clanTab.add(pageContent);
 
 		setEvent(null);
@@ -134,16 +140,40 @@ class VeritasEventsPanel extends PluginPanel
 		display.repaint();
 	}
 
-	/** The two choosers, dressed to match the rest of the panel. */
+	/** The two choosers, told apart by a caption and a gold edge. */
 	private static void style(JComboBox<String> combo)
 	{
 		combo.setFont(FontManager.getRunescapeFont());
 		combo.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		combo.setForeground(Color.WHITE);
+		combo.setForeground(GOLD);
 		combo.setFocusable(false);
 		combo.setAlignmentX(Component.LEFT_ALIGNMENT);
-		combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
-		combo.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+		combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+		combo.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 2, 1, 0, GOLD),
+			BorderFactory.createEmptyBorder(3, 6, 3, 4)));
+	}
+
+	/** A small blue heading above a control, so it is obvious what it picks. */
+	private static JLabel caption(String text)
+	{
+		JLabel label = new JLabel(text.toUpperCase());
+		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setForeground(BLUE);
+		label.setAlignmentX(Component.LEFT_ALIGNMENT);
+		label.setBorder(BorderFactory.createEmptyBorder(0, 1, 3, 0));
+		return label;
+	}
+
+	/** A hairline, to break the panel into parts. */
+	private static JPanel rule()
+	{
+		JPanel rule = new JPanel();
+		rule.setBackground(ColorScheme.BORDER_COLOR);
+		rule.setAlignmentX(Component.LEFT_ALIGNMENT);
+		rule.setPreferredSize(new Dimension(Integer.MAX_VALUE, 1));
+		rule.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+		return rule;
 	}
 
 	/** Logo, plugin name, who you are playing as, and whether the board is reachable. */
@@ -440,7 +470,7 @@ class VeritasEventsPanel extends PluginPanel
 			switch (text(block, "type"))
 			{
 				case "heading":
-					into.add(Box.createVerticalStrut(8));
+					into.add(Box.createVerticalStrut(12));
 					into.add(title(text(block, "text")));
 					break;
 
@@ -496,7 +526,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		if (columns != null && columns.size() > 0)
 		{
-			table.add(cells(lead(columns), last(columns), GOLD, GOLD));
+			table.add(cells(lead(columns), last(columns), BLUE, BLUE));
 		}
 
 		if (rows != null)
