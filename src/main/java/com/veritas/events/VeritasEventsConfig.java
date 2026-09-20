@@ -29,10 +29,11 @@ public interface VeritasEventsConfig extends Config
 	String overlaySection = "overlay";
 
 	@ConfigItem(keyName = "clanUrl", name = "Clan board", position = 0, section = eventSection,
-		description = "The clan's own address. Its pages are always there, event or no event.")
+		description = "The clan's own address. Its pages are always there, event or no event. "
+			+ "Veritas is filled in already; another clan can point this at their own.")
 	default String clanUrl()
 	{
-		return "";
+		return "https://veritas-clan-board.hegget34.workers.dev";
 	}
 
 	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 1, section = eventSection,
