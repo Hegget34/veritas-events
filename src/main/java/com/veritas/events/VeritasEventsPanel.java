@@ -102,8 +102,10 @@ class VeritasEventsPanel extends PluginPanel
 	private final JPanel homeTab = column();
 	private final JPanel statsTab = column();
 	private final JPanel gainedContent = column();
-	private final JComboBox<String> skillSelect = new JComboBox<>();
-	private final JComboBox<String> bossSelect = new JComboBox<>();
+	private final JComboBox<String> typeSelect = new JComboBox<>();
+	private final JComboBox<String> metricSelect = new JComboBox<>();
+	private final JLabel metricCaption = caption("Skill");
+	private String[] metrics = SKILLS;
 	private final JComboBox<String> periodSelect = new JComboBox<>();
 	private String metric = SKILLS[0];
 	private boolean statsAsked;
@@ -204,38 +206,58 @@ class VeritasEventsPanel extends PluginPanel
 	/** XP and kills the clan has put on, straight from Wise Old Man. */
 	private void buildStats()
 	{
-		for (String skill : SKILLS)
-		{
-			skillSelect.addItem(label(skill));
-		}
-		for (String boss : BOSSES)
-		{
-			bossSelect.addItem(label(boss));
-		}
+		typeSelect.addItem("Skill");
+		typeSelect.addItem("Boss");
+		fillMetrics();
 		for (String[] period : PERIODS)
 		{
 			periodSelect.addItem(period[0]);
 		}
 		periodSelect.setSelectedIndex(1);
 
-		style(skillSelect);
-		style(bossSelect);
+		style(typeSelect);
+		style(metricSelect);
 		style(periodSelect);
-		// Whichever chooser was touched last is the one being asked about.
-		skillSelect.addActionListener(e -> askGained(SKILLS[Math.max(0, skillSelect.getSelectedIndex())]));
-		bossSelect.addActionListener(e -> askGained(BOSSES[Math.max(0, bossSelect.getSelectedIndex())]));
+
+		typeSelect.addActionListener(e ->
+		{
+			boolean boss = typeSelect.getSelectedIndex() == 1;
+			metrics = boss ? BOSSES : SKILLS;
+			metricCaption.setText(boss ? "BOSS" : "SKILL");
+			fillMetrics();
+			askGained(metrics[0]);
+		});
+		metricSelect.addActionListener(e ->
+		{
+			if (!fillingPages)
+			{
+				askGained(metrics[Math.max(0, metricSelect.getSelectedIndex())]);
+			}
+		});
 		periodSelect.addActionListener(e -> askGained(metric));
 
-		statsTab.add(caption("Skill"));
-		statsTab.add(skillSelect);
+		statsTab.add(caption("Type"));
+		statsTab.add(typeSelect);
 		statsTab.add(Box.createVerticalStrut(10));
-		statsTab.add(caption("Boss"));
-		statsTab.add(bossSelect);
+		statsTab.add(metricCaption);
+		statsTab.add(metricSelect);
 		statsTab.add(Box.createVerticalStrut(10));
 		statsTab.add(caption("Period"));
 		statsTab.add(periodSelect);
 		statsTab.add(Box.createVerticalStrut(12));
 		statsTab.add(gainedContent);
+	}
+
+	/** Refills the second chooser after the first one changes. */
+	private void fillMetrics()
+	{
+		fillingPages = true;
+		metricSelect.removeAllItems();
+		for (String key : metrics)
+		{
+			metricSelect.addItem(label(key));
+		}
+		fillingPages = false;
 	}
 
 	private void askGained(String key)
@@ -405,7 +427,7 @@ class VeritasEventsPanel extends PluginPanel
 	private static JLabel caption(String text)
 	{
 		JLabel label = new JLabel(text.toUpperCase());
-		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setFont(FontManager.getRunescapeBoldFont());
 		label.setForeground(BLUE);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
 		label.setBorder(BorderFactory.createEmptyBorder(0, 1, 3, 0));

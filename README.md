@@ -50,8 +50,8 @@ The sidebar panel is picked from a dropdown:
 - **Event** - the event name, whether it is live, how long is left, your team,
   a bar showing how many tiles your team has done, then the standings and who
   has sent the most drops, with your team and your own name picked out
-- **Clan stats** - what the clan has gained, from Wise Old Man, with a chooser
-  each for skills and bosses and one for the period
+- **Clan stats** - what the clan has gained, from Wise Old Man. Choose skills
+  or bosses, then which one, then the period
 Any pages the board publishes are added to the same chooser under those four,
 so every page is one click rather than two.
 
