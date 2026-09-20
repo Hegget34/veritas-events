@@ -124,6 +124,9 @@ public class VeritasEventsPlugin extends Plugin
 	private ScheduledFuture<?> refresher;
 	private String boardPassword = "";
 
+	/** The event address the clan board says is running, if any. */
+	private String boardEvent = "";
+
 	/**
 	 * The items the running event is after, lower cased. While the board
 	 * publishes a list, only drops containing one of them are sent; everything
@@ -263,7 +266,7 @@ public class VeritasEventsPlugin extends Plugin
 			return;
 		}
 
-		if (!config.sendLoot() || config.eventUrl().trim().isEmpty() || total < config.minimumValue()
+		if (!config.sendLoot() || eventAddress().isEmpty() || total < config.minimumValue()
 			|| !onTheList(items))
 		{
 			report(source, icons, total, VeritasEventsPanel.KEPT);
@@ -282,7 +285,7 @@ public class VeritasEventsPlugin extends Plugin
 	public void onChatMessage(ChatMessage event)
 	{
 		if (event.getType() != ChatMessageType.GAMEMESSAGE
-			|| !config.sendPets() || config.eventUrl().trim().isEmpty())
+			|| !config.sendPets() || eventAddress().isEmpty())
 		{
 			return;
 		}
@@ -428,7 +431,16 @@ public class VeritasEventsPlugin extends Plugin
 			{
 				try (ResponseBody body = response.body())
 				{
-					p.setClan(gson.fromJson(body.string(), JsonObject.class));
+					JsonObject clan = gson.fromJson(body.string(), JsonObject.class);
+					p.setClan(clan);
+
+					String running = clan != null && clan.has("liveEvent")
+						? clan.get("liveEvent").getAsString().trim() : "";
+					if (!running.equals(boardEvent))
+					{
+						boardEvent = running;
+						refreshEvent();
+					}
 				}
 				catch (Exception e)
 				{
@@ -437,6 +449,19 @@ public class VeritasEventsPlugin extends Plugin
 				}
 			}
 		});
+	}
+
+	/**
+	 * Where event drops go.
+	 *
+	 * Whatever is typed in the settings, so a member can point at a one off
+	 * themselves. Otherwise whichever event the clan board says is running,
+	 * which means a host sets it once and nobody else has to do anything.
+	 */
+	private String eventAddress()
+	{
+		String typed = config.eventUrl().trim();
+		return typed.isEmpty() ? boardEvent : typed;
 	}
 
 	/** Asks the board for the standings again every few minutes. */
@@ -570,7 +595,7 @@ public class VeritasEventsPlugin extends Plugin
 	private void refreshEvent()
 	{
 		VeritasEventsPanel p = panel;
-		String url = config.eventUrl().trim();
+		String url = eventAddress();
 		if (p == null)
 		{
 			return;
@@ -631,7 +656,7 @@ public class VeritasEventsPlugin extends Plugin
 				.build();
 
 		Request request = new Request.Builder()
-			.url(config.eventUrl().trim())
+			.url(eventAddress())
 			.header("X-Event-Key", config.eventKey().trim())
 			.post(body)
 			.build();

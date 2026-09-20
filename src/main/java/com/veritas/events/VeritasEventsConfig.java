@@ -37,7 +37,8 @@ public interface VeritasEventsConfig extends Config
 	}
 
 	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 1, section = eventSection,
-		description = "The address of whichever event is running. Leave it blank when none is.")
+		description = "Where event drops go. Left blank, the clan board is asked "
+			+ "which event is running, so there is usually nothing to fill in here.")
 	default String eventUrl()
 	{
 		return "";
