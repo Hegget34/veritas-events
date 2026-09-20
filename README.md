@@ -69,8 +69,8 @@ so every page is one click rather than two.
 - **Loot Tracker** - every drop you receive, whether or not it was sent
   anywhere, grouped by what dropped it or listed kill by kill, collapsed or
   not, with a **Send again** button for when the board was down at the time.
-  Kept in `.runelite/veritas/loot.json`, so it is still there next time you
-  start the client. While an event is running, a chooser at the top switches
+  Kept per account in `.runelite/veritas/`, so it is still there next time you
+  start the client, and two accounts on one machine keep separate lists. While an event is running, a chooser at the top switches
   to the items that event is after
 
 All of it comes from the board, so an event that reports nothing still leaves a

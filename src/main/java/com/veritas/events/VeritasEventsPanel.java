@@ -116,7 +116,10 @@ class VeritasEventsPanel extends PluginPanel
 	private final ItemManager itemManager;
 	private final Deque<Sent> sent = new ArrayDeque<>();
 	private final Gson gson;
-	private final File store;
+	private final File folder;
+
+	/** Null until we know which account is playing; each one keeps its own. */
+	private File store;
 
 	private final JLabel rsn = new JLabel();
 	private final JLabel status = new JLabel();
@@ -158,13 +161,12 @@ class VeritasEventsPanel extends PluginPanel
 	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager,
 		@Nullable ImageIcon logo, Runnable onResend, Runnable onRefresh,
 		BiConsumer<String, String> onGained, BooleanSupplier lootTrackerOff,
-		Gson gson, File store)
+		Gson gson, File folder)
 	{
 		this.config = config;
 		this.itemManager = itemManager;
 		this.gson = gson;
-		this.store = store;
-		load();
+		this.folder = folder;
 		this.onRefresh = onRefresh;
 		this.onGained = onGained;
 		this.lootTrackerOff = lootTrackerOff;
@@ -574,7 +576,44 @@ class VeritasEventsPanel extends PluginPanel
 	/** The name you are playing as, shown under the title. */
 	void setPlayer(String name)
 	{
-		SwingUtilities.invokeLater(() -> rsn.setText(name));
+		SwingUtilities.invokeLater(() ->
+		{
+			rsn.setText(name);
+			useHistoryOf(name);
+		});
+	}
+
+	/**
+	 * Switches to that account's own history. Two accounts on one machine keep
+	 * separate lists, and logging in somewhere else picks the right one up.
+	 */
+	private void useHistoryOf(String name)
+	{
+		File next = new File(folder, "loot-" + fileSafe(name) + ".json");
+		if (next.equals(store))
+		{
+			return;
+		}
+
+		store = next;
+		synchronized (sent)
+		{
+			sent.clear();
+		}
+		load();
+		drawActivity();
+	}
+
+	/** An RSN as a file name: letters and digits, anything else an underscore. */
+	private static String fileSafe(String name)
+	{
+		StringBuilder safe = new StringBuilder();
+		for (int i = 0; i < name.length(); i++)
+		{
+			char c = name.charAt(i);
+			safe.append(Character.isLetterOrDigit(c) ? Character.toLowerCase(c) : '_');
+		}
+		return safe.length() == 0 ? "unknown" : safe.toString();
 	}
 
 	/** Updates the connection line. */
@@ -1168,7 +1207,7 @@ class VeritasEventsPanel extends PluginPanel
 	/** Reads back what previous sessions recorded. */
 	private void load()
 	{
-		if (!store.exists())
+		if (store == null || !store.exists())
 		{
 			return;
 		}
@@ -1199,6 +1238,12 @@ class VeritasEventsPanel extends PluginPanel
 	/** Writes the history out, so a restart does not lose it. */
 	private void save()
 	{
+		if (store == null)
+		{
+			// Nothing is recorded before we know whose drops these are.
+			return;
+		}
+
 		Sent[] keeping;
 		synchronized (sent)
 		{

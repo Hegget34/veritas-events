@@ -142,7 +142,7 @@ public class VeritasEventsPlugin extends Plugin
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
 		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon),
 			this::resend, this::refreshEvent, this::gained, this::lootTrackerOff,
-			gson, new File(RuneLite.RUNELITE_DIR, "veritas/loot.json"));
+			gson, new File(RuneLite.RUNELITE_DIR, "veritas"));
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas")
 			.icon(icon)
