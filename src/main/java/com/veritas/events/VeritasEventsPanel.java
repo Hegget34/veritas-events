@@ -5,6 +5,7 @@
  */
 package com.veritas.events;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -18,6 +19,14 @@ import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -37,6 +46,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -46,9 +56,11 @@ import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.QuantityFormatter;
 
 /** The sidebar panel: what the event is, how the teams stand, and what has been sent. */
+@Slf4j
 class VeritasEventsPanel extends PluginPanel
 {
-	private static final int HISTORY = 15;
+	/** Kept across restarts, so a long event is not lost by logging out. */
+	private static final int HISTORY = 1000;
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
 	private static final int BAR_HEIGHT = 16;
@@ -103,10 +115,8 @@ class VeritasEventsPanel extends PluginPanel
 	private final VeritasEventsConfig config;
 	private final ItemManager itemManager;
 	private final Deque<Sent> sent = new ArrayDeque<>();
-
-	private int kills;
-	private int sends;
-	private long sessionLoot;
+	private final Gson gson;
+	private final File store;
 
 	private final JLabel rsn = new JLabel();
 	private final JLabel status = new JLabel();
@@ -147,10 +157,14 @@ class VeritasEventsPanel extends PluginPanel
 
 	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager,
 		@Nullable ImageIcon logo, Runnable onResend, Runnable onRefresh,
-		BiConsumer<String, String> onGained, BooleanSupplier lootTrackerOff)
+		BiConsumer<String, String> onGained, BooleanSupplier lootTrackerOff,
+		Gson gson, File store)
 	{
 		this.config = config;
 		this.itemManager = itemManager;
+		this.gson = gson;
+		this.store = store;
+		load();
 		this.onRefresh = onRefresh;
 		this.onGained = onGained;
 		this.lootTrackerOff = lootTrackerOff;
@@ -690,7 +704,7 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		else
 		{
-			stats.add(stat("Your drops", String.valueOf(kills)));
+			stats.add(stat("Your drops", String.valueOf(count())));
 		}
 		return stats;
 	}
@@ -980,13 +994,8 @@ class VeritasEventsPanel extends PluginPanel
 			{
 				sent.removeLast();
 			}
-			kills++;
-			if (state == SENT)
-			{
-				sends++;
-			}
-			sessionLoot += value;
 		}
+		save();
 		SwingUtilities.invokeLater(() ->
 		{
 			resend.setEnabled(true);
@@ -1088,12 +1097,25 @@ class VeritasEventsPanel extends PluginPanel
 
 	private void drawLoot()
 	{
+		int kills = 0;
+		int sends = 0;
+		long loot = 0;
+		synchronized (sent)
+		{
+			for (Sent one : sent)
+			{
+				kills += one.count;
+				sends += one.state == SENT ? one.count : 0;
+				loot += one.value;
+			}
+		}
+
 		JPanel counts = new JPanel(new GridLayout(1, 3, 4, 0));
 		counts.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		counts.setAlignmentX(Component.LEFT_ALIGNMENT);
 		counts.add(stat("Kills", String.valueOf(kills)));
 		counts.add(stat("Sent", String.valueOf(sends)));
-		counts.add(stat("Loot", QuantityFormatter.quantityToStackSize(sessionLoot)));
+		counts.add(stat("Loot", QuantityFormatter.quantityToStackSize(loot)));
 		activityTab.add(counts);
 		activityTab.add(Box.createVerticalStrut(8));
 
@@ -1126,6 +1148,78 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			activityTab.add(box(entry));
 			activityTab.add(Box.createVerticalStrut(6));
+		}
+	}
+
+	/** How many drops are on record. */
+	private int count()
+	{
+		synchronized (sent)
+		{
+			int total = 0;
+			for (Sent one : sent)
+			{
+				total += one.count;
+			}
+			return total;
+		}
+	}
+
+	/** Reads back what previous sessions recorded. */
+	private void load()
+	{
+		if (!store.exists())
+		{
+			return;
+		}
+		try (Reader reader = new InputStreamReader(new FileInputStream(store), StandardCharsets.UTF_8))
+		{
+			Sent[] kept = gson.fromJson(reader, Sent[].class);
+			if (kept != null)
+			{
+				synchronized (sent)
+				{
+					for (Sent one : kept)
+					{
+						if (one != null && one.source != null && one.items != null)
+						{
+							sent.addLast(one);
+						}
+					}
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			// A half written or older file is not worth failing to start over.
+			log.debug("could not read the loot history", e);
+		}
+	}
+
+	/** Writes the history out, so a restart does not lose it. */
+	private void save()
+	{
+		Sent[] keeping;
+		synchronized (sent)
+		{
+			keeping = sent.toArray(new Sent[0]);
+		}
+		try
+		{
+			File parent = store.getParentFile();
+			if (parent != null && !parent.exists() && !parent.mkdirs())
+			{
+				return;
+			}
+			try (Writer writer = new OutputStreamWriter(
+				new FileOutputStream(store), StandardCharsets.UTF_8))
+			{
+				gson.toJson(keeping, writer);
+			}
+		}
+		catch (Exception e)
+		{
+			log.debug("could not write the loot history", e);
 		}
 	}
 

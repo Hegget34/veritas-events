@@ -15,6 +15,7 @@ import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,6 +37,7 @@ import javax.swing.ImageIcon;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.client.RuneLite;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
@@ -139,7 +141,8 @@ public class VeritasEventsPlugin extends Plugin
 	{
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
 		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon),
-			this::resend, this::refreshEvent, this::gained, this::lootTrackerOff);
+			this::resend, this::refreshEvent, this::gained, this::lootTrackerOff,
+			gson, new File(RuneLite.RUNELITE_DIR, "veritas/loot.json"));
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas")
 			.icon(icon)
