@@ -118,12 +118,12 @@ can be shown to have been taken during the event rather than dug out of an old
 folder. The plugin draws it over the game along with the date and time in UTC,
 in colours you pick.
 
-Type it into **Event password** under Overlay, or let the board set it for
-everyone by returning `password` in its answer, and nobody has to be told it
-at all.
+Type it into **Event password** under Overlay and that is what shows. Leave it
+blank and the board can set it for everyone by returning `password` in its
+answer, so nobody has to be told it at all.
 
-It starts in the top left. Hold **Alt** and drag it wherever you want it; right
-click it for the usual overlay menu.
+Password and time sit on one line, in the top left to start with. Hold **Alt**
+and drag it wherever you want it; right click it for the usual overlay menu.
 
 ## Screenshots
 

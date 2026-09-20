@@ -301,12 +301,13 @@ public class VeritasEventsPlugin extends Plugin
 	}
 
 	/**
-	 * The word shown on screen. The board can set it for everyone, so nobody has
-	 * to be told it; otherwise it is whatever you typed into the settings.
+	 * The word shown on screen. What you typed wins, so it is never overwritten
+	 * as the standings refresh; the board only fills it in when you left it blank.
 	 */
 	String password()
 	{
-		return boardPassword.isEmpty() ? config.eventPassword().trim() : boardPassword;
+		String typed = config.eventPassword().trim();
+		return typed.isEmpty() ? boardPassword : typed;
 	}
 
 	/** Asks the board for the standings again every few minutes. */

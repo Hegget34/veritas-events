@@ -26,6 +26,8 @@ import net.runelite.client.ui.overlay.components.LineComponent;
  */
 class VeritasEventsOverlay extends OverlayPanel
 {
+	private static final int PADDING = 14;
+
 	private static final DateTimeFormatter CLOCK =
 		DateTimeFormatter.ofPattern("dd/MM/uuuu HH:mm").withZone(ZoneOffset.UTC);
 
@@ -48,28 +50,35 @@ class VeritasEventsOverlay extends OverlayPanel
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		String password = plugin.password();
-		boolean clock = config.showDateTime();
-		if (!config.showOverlay() || (password.isEmpty() && !clock))
+		if (!config.showOverlay())
 		{
 			return null;
 		}
 
-		if (!password.isEmpty())
+		String password = plugin.password();
+		String clock = config.showDateTime() ? CLOCK.format(Instant.now()) + " UTC" : "";
+		if (password.isEmpty() && clock.isEmpty())
 		{
-			panelComponent.getChildren().add(LineComponent.builder()
-				.left(password)
-				.leftColor(config.passwordColor())
-				.build());
+			return null;
 		}
 
-		if (clock)
-		{
-			panelComponent.getChildren().add(LineComponent.builder()
-				.left(CLOCK.format(Instant.now()) + " UTC")
-				.leftColor(config.dateTimeColor())
-				.build());
-		}
+		// One row, password on the left and the clock on the right, rather than
+		// two stacked lines. Either half alone sits on the left on its own.
+		boolean both = !password.isEmpty() && !clock.isEmpty();
+		String left = password.isEmpty() ? clock : password;
+		String right = both ? clock : "";
+
+		panelComponent.getChildren().add(LineComponent.builder()
+			.left(left)
+			.leftColor(password.isEmpty() ? config.dateTimeColor() : config.passwordColor())
+			.right(right)
+			.rightColor(config.dateTimeColor())
+			.build());
+
+		// The panel is a fixed width by default, which would overlap the two
+		// halves, so widen it to whatever the text actually needs.
+		panelComponent.setPreferredSize(new Dimension(
+			graphics.getFontMetrics().stringWidth(left + (both ? "    " + right : "")) + PADDING, 0));
 
 		return super.render(graphics);
 	}
