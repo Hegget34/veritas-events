@@ -336,12 +336,19 @@ public class VeritasEventsPlugin extends Plugin
 
 	/**
 	 * The word shown on screen. What you typed wins, so it is never overwritten
-	 * as the standings refresh; the board only fills it in when you left it blank.
+	 * as the standings refresh. Left blank, the board sets it for everyone, and
+	 * with no board either it falls back to the clan name.
 	 */
 	String password()
 	{
 		String typed = config.eventPassword().trim();
-		return typed.isEmpty() ? boardPassword : typed;
+		if (!typed.isEmpty())
+		{
+			return typed;
+		}
+		// Falling back to the clan name keeps the stamp on every screenshot, so
+		// one is never taken without something to date it by.
+		return boardPassword.isEmpty() ? "Veritas" : boardPassword;
 	}
 
 	/** Asks the board for the standings again every few minutes. */

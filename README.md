@@ -178,8 +178,9 @@ folder. The plugin draws it over the game along with the date and time in UTC,
 in colours you pick.
 
 Type it into **Event password** under Overlay and that is what shows. Leave it
-blank and the board can set it for everyone by returning `password` in its
-answer, so nobody has to be told it at all.
+blank and the board sets it for everyone by returning `password` in its answer,
+so nobody has to be told it at all. With no event running it falls back to
+**Veritas**, so a screenshot is never taken without something to date it by.
 
 Password and time sit on one line, in the top left to start with. Hold **Alt**
 and drag it wherever you want it; right click it for the usual overlay menu.

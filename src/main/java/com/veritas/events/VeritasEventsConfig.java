@@ -101,7 +101,7 @@ public interface VeritasEventsConfig extends Config
 	}
 
 	@ConfigItem(keyName = "eventPassword", name = "Event password", position = 1, section = overlaySection,
-		description = "The word your organiser announced. Shown on screen so your screenshots prove when they were taken.")
+		description = "The word your organiser announced. Shown on screen so your screenshots prove when they were taken. Leave it blank to take the event's own, or Veritas when there is no event.")
 	default String eventPassword()
 	{
 		return "";
