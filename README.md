@@ -48,9 +48,8 @@ The sidebar panel is picked from a dropdown:
   website, DropTracker, TempleOSRS and Wise Old Man. Built in, so it reads
   properly before any board answers, and a board can add to it with `home`
 - **Event** - the event name, whether it is live, how long is left, your team,
-  and a bar showing how many tiles your team has done
-- **Teams** - the standings, and who has sent the most drops, with your team
-  and your own name picked out
+  a bar showing how many tiles your team has done, then the standings and who
+  has sent the most drops, with your team and your own name picked out
 - **Clan** - whatever pages the board publishes, picked from a dropdown
 - **Loot Tracker** - how much you have sent this session, everything that went
   out with whether the board accepted it, and a **Send again** button for when

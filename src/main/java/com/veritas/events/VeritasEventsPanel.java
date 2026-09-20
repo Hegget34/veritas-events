@@ -69,7 +69,6 @@ class VeritasEventsPanel extends PluginPanel
 
 	private final JPanel homeTab = column();
 	private final JPanel eventTab = column();
-	private final JPanel teamTab = column();
 	private final JPanel clanTab = column();
 	private final JPanel activityTab = column();
 
@@ -109,7 +108,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		for (String view : new String[]{"Home", "Event", "Teams", "Clan", "Loot Tracker"})
+		for (String view : new String[]{"Home", "Event", "Clan", "Loot Tracker"})
 		{
 			viewSelect.addItem(view);
 		}
@@ -189,9 +188,8 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		int chosen = viewSelect.getSelectedIndex();
 		JPanel view = chosen == 1 ? eventTab
-			: chosen == 2 ? teamTab
-			: chosen == 3 ? clanTab
-			: chosen == 4 ? activityTab
+			: chosen == 2 ? clanTab
+			: chosen == 3 ? activityTab
 			: homeTab;
 
 		display.removeAll();
@@ -284,7 +282,7 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/**
-	 * Fills the Event and Teams tabs from whatever the board reported. Every field
+	 * Fills the views from whatever the board reported. Every field
 	 * is optional, so a board that answers with nothing still leaves a usable panel.
 	 */
 	void setEvent(@Nullable JsonObject details)
@@ -294,7 +292,6 @@ class VeritasEventsPanel extends PluginPanel
 			lastDetails = details;
 			drawHome(details);
 			drawEvent(details);
-			drawTeams(details);
 			drawPages(details);
 		});
 	}
@@ -351,7 +348,9 @@ class VeritasEventsPanel extends PluginPanel
 			blocks(eventTab, array(details, "blocks"));
 		}
 
-		eventTab.add(Box.createVerticalStrut(8));
+		teams(eventTab, details);
+
+		eventTab.add(Box.createVerticalStrut(12));
 		JButton refreshButton = new JButton("Refresh");
 		refreshButton.setFont(FontManager.getRunescapeFont());
 		refreshButton.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -430,43 +429,37 @@ class VeritasEventsPanel extends PluginPanel
 		return bar;
 	}
 
-	private void drawTeams(@Nullable JsonObject details)
+	/** Where the teams stand, and who has sent the most, under the event itself. */
+	private void teams(JPanel into, @Nullable JsonObject details)
 	{
-		teamTab.removeAll();
 		String you = text(details, "team");
 
 		JsonArray standings = array(details, "standings");
-		if (standings == null)
+		if (standings != null)
 		{
-			teamTab.add(hint("Standings show here once the board reports them."));
-		}
-		else
-		{
-			teamTab.add(title(orElse(text(details, "standingsLabel"), "Standings")));
+			into.add(Box.createVerticalStrut(12));
+			into.add(title(orElse(text(details, "standingsLabel"), "Standings")));
 			int rank = 1;
 			for (JsonElement element : standings)
 			{
 				JsonObject entry = element.getAsJsonObject();
 				String team = text(entry, "name");
-				teamTab.add(row(rank++ + ". " + team, text(entry, "value"), team.equals(you)));
+				into.add(row(rank++ + ". " + team, text(entry, "value"), team.equals(you)));
 			}
 		}
 
 		JsonArray top = array(details, "top");
 		if (top != null)
 		{
-			teamTab.add(Box.createVerticalStrut(8));
-			teamTab.add(title(orElse(text(details, "topLabel"), "Most drops")));
+			into.add(Box.createVerticalStrut(12));
+			into.add(title(orElse(text(details, "topLabel"), "Most drops")));
 			for (JsonElement element : top)
 			{
 				JsonObject entry = element.getAsJsonObject();
 				String player = text(entry, "name");
-				teamTab.add(row(player, text(entry, "value"), player.equals(rsn.getText())));
+				into.add(row(player, text(entry, "value"), player.equals(rsn.getText())));
 			}
 		}
-
-		teamTab.revalidate();
-		teamTab.repaint();
 	}
 
 	/** Fills the page chooser from the board, keeping whatever page was open. */
