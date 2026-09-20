@@ -171,11 +171,6 @@ public class VeritasEventsPlugin extends Plugin
 	@Subscribe
 	public void onLootReceived(LootReceived event)
 	{
-		if (!config.sendLoot() || config.eventUrl().trim().isEmpty())
-		{
-			return;
-		}
-
 		JsonArray items = new JsonArray();
 		List<int[]> icons = new ArrayList<>();
 		long total = 0;
@@ -194,8 +189,15 @@ public class VeritasEventsPlugin extends Plugin
 			items.add(item);
 		}
 
-		if (items.size() == 0 || total < config.minimumValue())
+		if (items.size() == 0)
 		{
+			return;
+		}
+
+		// Everything is tracked; only some of it is worth sending anywhere.
+		if (!config.sendLoot() || config.eventUrl().trim().isEmpty() || total < config.minimumValue())
+		{
+			report(event.getName(), icons, total, VeritasEventsPanel.KEPT);
 			return;
 		}
 
@@ -453,25 +455,26 @@ public class VeritasEventsPlugin extends Plugin
 			public void onFailure(Call call, IOException e)
 			{
 				log.warn("could not reach the event board", e);
-				report(source, icons, value, false);
+				report(source, icons, value, VeritasEventsPanel.FAILED);
 			}
 
 			@Override
 			public void onResponse(Call call, Response response)
 			{
-				report(source, icons, value, response.isSuccessful());
+				report(source, icons, value,
+					response.isSuccessful() ? VeritasEventsPanel.SENT : VeritasEventsPanel.FAILED);
 				response.close();
 			}
 		});
 	}
 
 
-	private void report(String source, List<int[]> icons, long value, boolean ok)
+	private void report(String source, List<int[]> icons, long value, int state)
 	{
 		VeritasEventsPanel p = panel;
 		if (p != null)
 		{
-			p.record(source, icons, value, ok);
+			p.record(source, icons, value, state);
 		}
 	}
 }

@@ -12,8 +12,12 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.BasicStroke;
 import java.awt.FlowLayout;
+import java.awt.Graphics2D;
 import java.awt.GridLayout;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -49,6 +53,11 @@ class VeritasEventsPanel extends PluginPanel
 	private static final int BAR_HEIGHT = 16;
 	private static final int BUTTON_HEIGHT = 26;
 	private static final String[] VIEWS = {"Home", "Event", "Clan stats", "Loot Tracker"};
+
+	/** Ordered worst last, so merging a group keeps the worst outcome. */
+	static final int SENT = 0;
+	static final int KEPT = 1;
+	static final int FAILED = 2;
 
 	private static final String[] SKILLS = {
 		"overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic",
@@ -92,8 +101,8 @@ class VeritasEventsPanel extends PluginPanel
 	private final ItemManager itemManager;
 	private final Deque<Sent> sent = new ArrayDeque<>();
 
+	private int kills;
 	private int sends;
-	private int failures;
 	private long sessionLoot;
 
 	private final JLabel rsn = new JLabel();
@@ -156,8 +165,8 @@ class VeritasEventsPanel extends PluginPanel
 		});
 		for (JButton button : new JButton[]{groupButton, collapseButton})
 		{
-			button.setFont(FontManager.getRunescapeFont());
-			button.setAlignmentX(Component.LEFT_ALIGNMENT);
+			button.setPreferredSize(new Dimension(28, 24));
+			button.setFocusable(false);
 		}
 		groupButton.addActionListener(e ->
 		{
@@ -429,6 +438,37 @@ class VeritasEventsPanel extends PluginPanel
 		return label;
 	}
 
+	/** Stacked bars: four for a list of kills, two for a grouped one. */
+	private static ImageIcon bars(int count)
+	{
+		BufferedImage image = new BufferedImage(14, 14, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = image.createGraphics();
+		graphics.setColor(Color.LIGHT_GRAY);
+		int step = 12 / count;
+		for (int i = 0; i < count; i++)
+		{
+			graphics.fillRect(1, 1 + i * step, 12, Math.max(1, step - 1));
+		}
+		graphics.dispose();
+		return new ImageIcon(image);
+	}
+
+	/** A chevron, pointing down to expand and up to collapse. */
+	private static ImageIcon chevron(boolean down)
+	{
+		BufferedImage image = new BufferedImage(14, 14, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = image.createGraphics();
+		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		graphics.setColor(Color.LIGHT_GRAY);
+		graphics.setStroke(new BasicStroke(2f));
+		int top = down ? 4 : 9;
+		int bottom = down ? 9 : 4;
+		graphics.drawLine(2, top, 7, bottom);
+		graphics.drawLine(7, bottom, 12, top);
+		graphics.dispose();
+		return new ImageIcon(image);
+	}
+
 	/** A hairline, to break the panel into parts. */
 	private static JPanel rule()
 	{
@@ -610,7 +650,7 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		else
 		{
-			stats.add(stat("Your drops", String.valueOf(sends)));
+			stats.add(stat("Your drops", String.valueOf(kills)));
 		}
 		return stats;
 	}
@@ -824,20 +864,24 @@ class VeritasEventsPanel extends PluginPanel
 		return row.size() > 1 ? row.get(row.size() - 1).getAsString() : "";
 	}
 
-	/** Records one send. items is a flat list of id, quantity pairs. */
-	void record(String source, List<int[]> items, long value, boolean ok)
+	/**
+	 * Records one lot of loot, whether or not it was sent anywhere. The tracker
+	 * is worth having with no event running, so everything is kept and only the
+	 * outcome differs.
+	 */
+	void record(String source, List<int[]> items, long value, int state)
 	{
 		synchronized (sent)
 		{
-			sent.addFirst(new Sent(source, items, value, ok));
+			sent.addFirst(new Sent(source, items, value, state));
 			while (sent.size() > HISTORY)
 			{
 				sent.removeLast();
 			}
-			sends++;
-			if (!ok)
+			kills++;
+			if (state == SENT)
 			{
-				failures++;
+				sends++;
 			}
 			sessionLoot += value;
 		}
@@ -857,7 +901,7 @@ class VeritasEventsPanel extends PluginPanel
 		fillingPages = true;
 		lootSelect.removeAllItems();
 		lootSelect.addItem("Your loot");
-		if (wanted != null)
+		if (wanted != null || !text(lastDetails, "event").isEmpty())
 		{
 			lootSelect.addItem("Items to go for");
 		}
@@ -867,15 +911,17 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		fillingPages = false;
 
-		// The chooser is only worth the room when there is an event asking for something.
-		if (wanted != null)
+		// Worth the room only while an event is running; without one there is
+		// nothing to go for and the chooser would just be in the way.
+		boolean event = wanted != null || !text(lastDetails, "event").isEmpty();
+		if (event)
 		{
 			activityTab.add(caption("Show"));
 			activityTab.add(lootSelect);
 			activityTab.add(Box.createVerticalStrut(12));
 		}
 
-		if (wanted != null && lootSelect.getSelectedIndex() == 1)
+		if (event && lootSelect.getSelectedIndex() == 1)
 		{
 			drawWanted(wanted);
 		}
@@ -889,9 +935,15 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** What this event is asking for, so you know what is worth going after. */
-	private void drawWanted(JsonArray wanted)
+	private void drawWanted(@Nullable JsonArray wanted)
 	{
 		activityTab.add(title(orElse(text(lastDetails, "wantedLabel"), "Still to find")));
+
+		if (wanted == null || wanted.size() == 0)
+		{
+			activityTab.add(hint("This event is not publishing a list of items."));
+			return;
+		}
 
 		for (JsonElement element : wanted)
 		{
@@ -932,18 +984,25 @@ class VeritasEventsPanel extends PluginPanel
 		JPanel counts = new JPanel(new GridLayout(1, 3, 4, 0));
 		counts.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		counts.setAlignmentX(Component.LEFT_ALIGNMENT);
+		counts.add(stat("Kills", String.valueOf(kills)));
 		counts.add(stat("Sent", String.valueOf(sends)));
-		counts.add(stat("Failed", String.valueOf(failures)));
 		counts.add(stat("Loot", QuantityFormatter.quantityToStackSize(sessionLoot)));
 		activityTab.add(counts);
 		activityTab.add(Box.createVerticalStrut(8));
 
-		groupButton.setText(grouped ? "Each kill separately" : "Group by source");
-		collapseButton.setText(collapsed ? "Expand all" : "Collapse all");
-		activityTab.add(groupButton);
-		activityTab.add(Box.createVerticalStrut(2));
-		activityTab.add(collapseButton);
-		activityTab.add(Box.createVerticalStrut(2));
+		groupButton.setIcon(bars(grouped ? 4 : 2));
+		groupButton.setToolTipText(grouped ? "Show each kill separately" : "Group loot by source");
+		collapseButton.setIcon(chevron(collapsed));
+		collapseButton.setToolTipText(collapsed ? "Expand all" : "Collapse all");
+
+		JPanel tools = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+		tools.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		tools.setAlignmentX(Component.LEFT_ALIGNMENT);
+		tools.add(groupButton);
+		tools.add(collapseButton);
+		tools.setMaximumSize(new Dimension(Integer.MAX_VALUE, tools.getPreferredSize().height));
+		activityTab.add(tools);
+		activityTab.add(Box.createVerticalStrut(4));
 		activityTab.add(resend);
 		activityTab.add(Box.createVerticalStrut(10));
 
@@ -1000,7 +1059,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		JLabel source = new JLabel(entry.count > 1 ? entry.source + " x " + entry.count : entry.source);
 		source.setFont(FontManager.getRunescapeFont());
-		source.setForeground(entry.ok ? Color.WHITE : ColorScheme.PROGRESS_ERROR_COLOR);
+		source.setForeground(entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR : Color.WHITE);
 		top.add(source, BorderLayout.WEST);
 
 		if (entry.value > 0)
@@ -1026,9 +1085,13 @@ class VeritasEventsPanel extends PluginPanel
 			box.add(icons, BorderLayout.CENTER);
 		}
 
-		if (!entry.ok)
+		if (entry.state == FAILED)
 		{
 			box.add(line("Not accepted by the board", ColorScheme.PROGRESS_ERROR_COLOR), BorderLayout.SOUTH);
+		}
+		else if (entry.state == KEPT)
+		{
+			box.add(line("Not sent", Color.GRAY), BorderLayout.SOUTH);
 		}
 		return box;
 	}
@@ -1191,16 +1254,16 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		private final String source;
 		private final List<int[]> items;
-		private final boolean ok;
+		private int state;
 		private long value;
 		private int count;
 
-		Sent(String source, List<int[]> items, long value, boolean ok)
+		Sent(String source, List<int[]> items, long value, int state)
 		{
 			this.source = source;
 			this.items = items;
 			this.value = value;
-			this.ok = ok;
+			this.state = state;
 			this.count = 1;
 		}
 
@@ -1212,13 +1275,14 @@ class VeritasEventsPanel extends PluginPanel
 			{
 				copied.add(new int[]{item[0], item[1]});
 			}
-			return new Sent(source, copied, value, ok);
+			return new Sent(source, copied, value, state);
 		}
 
 		void merge(Sent other)
 		{
 			count += other.count;
 			value += other.value;
+			state = Math.max(state, other.state);
 			for (int[] add : other.items)
 			{
 				boolean known = false;
