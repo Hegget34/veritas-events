@@ -15,8 +15,10 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -45,6 +47,33 @@ class VeritasEventsPanel extends PluginPanel
 	private static final int BAR_HEIGHT = 16;
 	private static final int BUTTON_HEIGHT = 26;
 
+	private static final String[] SKILLS = {
+		"overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic",
+		"cooking", "woodcutting", "fletching", "fishing", "firemaking", "crafting", "smithing",
+		"mining", "herblore", "agility", "thieving", "slayer", "farming", "runecrafting",
+		"hunter", "construction", "sailing",
+	};
+
+	private static final String[] BOSSES = {
+		"ehb", "abyssal_sire", "alchemical_hydra", "amoxliatl", "araxxor", "artio", "barrows_chests",
+		"bryophyta", "callisto", "calvarion", "cerberus", "chambers_of_xeric",
+		"chambers_of_xeric_challenge_mode", "chaos_elemental", "chaos_fanatic", "commander_zilyana",
+		"corporeal_beast", "crazy_archaeologist", "dagannoth_prime", "dagannoth_rex",
+		"dagannoth_supreme", "deranged_archaeologist", "doom_of_mokhaiotl", "duke_sucellus",
+		"general_graardor", "giant_mole", "grotesque_guardians", "hespori", "kalphite_queen",
+		"king_black_dragon", "kraken", "kreearra", "kril_tsutsaroth", "lunar_chests", "mimic", "nex",
+		"nightmare", "obor", "phantom_muspah", "phosanis_nightmare", "sarachnis", "scorpia",
+		"scurrius", "skotizo", "sol_heredit", "spindel", "tempoross", "the_corrupted_gauntlet",
+		"the_gauntlet", "the_hueycoatl", "the_leviathan", "the_royal_titans", "the_whisperer",
+		"theatre_of_blood", "theatre_of_blood_hard_mode", "thermonuclear_smoke_devil",
+		"tombs_of_amascut", "tombs_of_amascut_expert", "tzkal_zuk", "tztok_jad", "vardorvis",
+		"venenatis", "vetion", "vorkath", "wintertodt", "yama", "zalcano", "zulrah",
+	};
+
+	private static final String[][] PERIODS = {
+		{"Today", "day"}, {"This week", "week"}, {"This month", "month"}, {"This year", "year"},
+	};
+
 	private static final String[][] COMMUNITY = {
 		{"Discord", "https://discord.gg/veritascc"},
 		{"Clan website", "https://osrs-bingo-arbd.onrender.com/"},
@@ -68,6 +97,12 @@ class VeritasEventsPanel extends PluginPanel
 	private final JLabel status = new JLabel();
 
 	private final JPanel homeTab = column();
+	private final JPanel gainedTab = column();
+	private final JPanel gainedContent = column();
+	private final JComboBox<String> metricSelect = new JComboBox<>();
+	private final JComboBox<String> periodSelect = new JComboBox<>();
+	private final List<String> metricKeys = new ArrayList<>();
+	private final BiConsumer<String, String> onGained;
 	private final JPanel eventTab = column();
 	private final JPanel clanTab = column();
 	private final JPanel activityTab = column();
@@ -85,11 +120,13 @@ class VeritasEventsPanel extends PluginPanel
 	private final Runnable onRefresh;
 
 	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager,
-		@Nullable ImageIcon logo, Runnable onResend, Runnable onRefresh)
+		@Nullable ImageIcon logo, Runnable onResend, Runnable onRefresh,
+		BiConsumer<String, String> onGained)
 	{
 		this.config = config;
 		this.itemManager = itemManager;
 		this.onRefresh = onRefresh;
+		this.onGained = onGained;
 
 		setLayout(new BorderLayout());
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
@@ -110,7 +147,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		for (String view : new String[]{"Home", "Event", "Clan", "Loot Tracker"})
+		for (String view : new String[]{"Home", "Event", "Clan", "Gained", "Loot Tracker"})
 		{
 			viewSelect.addItem(view);
 		}
@@ -137,9 +174,116 @@ class VeritasEventsPanel extends PluginPanel
 		clanTab.add(Box.createVerticalStrut(10));
 		clanTab.add(pageContent);
 
+		buildGained();
 		setEvent(null, null);
 		drawActivity();
 		refresh();
+	}
+
+	/** XP and kills the clan has put on, straight from Wise Old Man. */
+	private void buildGained()
+	{
+		for (String skill : SKILLS)
+		{
+			metricKeys.add(skill);
+			metricSelect.addItem(label(skill));
+		}
+		for (String boss : BOSSES)
+		{
+			metricKeys.add(boss);
+			metricSelect.addItem(label(boss));
+		}
+		for (String[] period : PERIODS)
+		{
+			periodSelect.addItem(period[0]);
+		}
+		periodSelect.setSelectedIndex(1);
+
+		style(metricSelect);
+		style(periodSelect);
+		metricSelect.addActionListener(e -> askGained());
+		periodSelect.addActionListener(e -> askGained());
+
+		gainedTab.add(caption("Metric"));
+		gainedTab.add(metricSelect);
+		gainedTab.add(Box.createVerticalStrut(10));
+		gainedTab.add(caption("Period"));
+		gainedTab.add(periodSelect);
+		gainedTab.add(Box.createVerticalStrut(12));
+		gainedTab.add(gainedContent);
+
+		gainedContent.add(hint("Pick a skill or a boss to see who has gained the most."));
+	}
+
+	private void askGained()
+	{
+		int metric = metricSelect.getSelectedIndex();
+		int period = periodSelect.getSelectedIndex();
+		if (metric < 0 || metric >= metricKeys.size() || period < 0)
+		{
+			return;
+		}
+
+		gainedContent.removeAll();
+		gainedContent.add(hint("Asking Wise Old Man..."));
+		gainedContent.revalidate();
+		gainedContent.repaint();
+
+		onGained.accept(metricKeys.get(metric), PERIODS[period][1]);
+	}
+
+	/** The leaderboard Wise Old Man sent back. */
+	void setGained(@Nullable JsonArray rows, @Nullable String problem)
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			gainedContent.removeAll();
+
+			if (rows == null)
+			{
+				gainedContent.add(hint(problem == null ? "Nothing came back." : problem));
+			}
+			else
+			{
+				String you = rsn.getText();
+				int rank = 1;
+				for (JsonElement element : rows)
+				{
+					JsonObject entry = element.getAsJsonObject();
+					long gained = number(object(entry, "data"), "gained");
+					if (gained <= 0)
+					{
+						// Most of a 300 member clan gains nothing at a given boss.
+						continue;
+					}
+					String who = text(object(entry, "player"), "displayName");
+					gainedContent.add(row(rank++ + ". " + who,
+						QuantityFormatter.quantityToStackSize(gained), who.equals(you)));
+				}
+				if (rank == 1)
+				{
+					gainedContent.add(hint("Nobody has gained anything here yet."));
+				}
+			}
+
+			gainedContent.revalidate();
+			gainedContent.repaint();
+		});
+	}
+
+	/** "the_royal_titans" reads as "The royal titans". */
+	private static String label(String key)
+	{
+		if ("overall".equals(key))
+		{
+			return "Overall XP";
+		}
+		if ("ehb".equals(key))
+		{
+			return "Efficient hours bossed";
+		}
+		String words = key.replace('_', ' ');
+		return Character.toUpperCase(words.charAt(0)) + words.substring(1);
 	}
 
 	/**
@@ -191,7 +335,8 @@ class VeritasEventsPanel extends PluginPanel
 		int chosen = viewSelect.getSelectedIndex();
 		JPanel view = chosen == 1 ? eventTab
 			: chosen == 2 ? clanTab
-			: chosen == 3 ? activityTab
+			: chosen == 3 ? gainedTab
+			: chosen == 4 ? activityTab
 			: homeTab;
 
 		display.removeAll();
@@ -413,8 +558,9 @@ class VeritasEventsPanel extends PluginPanel
 	/** The event's own measure of progress, whatever it counts. */
 	private static ProgressBar bar(JsonObject progress)
 	{
-		int done = number(progress, "done");
-		int total = Math.max(1, number(progress, "total"));
+		// ProgressBar counts in ints; a tile count never comes near the limit.
+		int done = (int) number(progress, "done");
+		int total = (int) Math.max(1, number(progress, "total"));
 		ProgressBar bar = new ProgressBar();
 		bar.setMaximumValue(total);
 		bar.setValue(done);
@@ -842,11 +988,11 @@ class VeritasEventsPanel extends PluginPanel
 		return has(object, key) ? object.get(key).getAsString() : "";
 	}
 
-	private static int number(@Nullable JsonObject object, String key)
+	private static long number(@Nullable JsonObject object, String key)
 	{
 		try
 		{
-			return has(object, key) ? object.get(key).getAsInt() : 0;
+			return has(object, key) ? object.get(key).getAsLong() : 0;
 		}
 		catch (RuntimeException e)
 		{

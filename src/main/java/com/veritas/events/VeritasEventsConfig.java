@@ -51,6 +51,13 @@ public interface VeritasEventsConfig extends Config
 		return 5;
 	}
 
+	@ConfigItem(keyName = "womGroupId", name = "Wise Old Man group", position = 4, section = eventSection,
+		description = "The group id the Gained view reads from. Veritas is 13727. Set it to 0 to turn that view off.")
+	default int womGroupId()
+	{
+		return 13727;
+	}
+
 	@ConfigItem(keyName = "sendScreenshot", name = "Include a screenshot", position = 2, section = eventSection,
 		description = "Attach a picture of your screen, so staff can see it without you uploading one.")
 	default boolean sendScreenshot()

@@ -68,6 +68,7 @@ import okhttp3.ResponseBody;
 )
 public class VeritasEventsPlugin extends Plugin
 {
+	private static final String WISE_OLD_MAN = "https://api.wiseoldman.net/v2/groups/";
 	private static final MediaType JSON = MediaType.get("application/json");
 	private static final MediaType JPEG = MediaType.get("image/jpeg");
 	private static final int MAX_WIDTH = 1920;
@@ -119,7 +120,8 @@ public class VeritasEventsPlugin extends Plugin
 	protected void startUp()
 	{
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
-		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon), this::resend, this::refreshEvent);
+		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon),
+			this::resend, this::refreshEvent, this::gained);
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas Events")
 			.icon(icon)
@@ -319,6 +321,50 @@ public class VeritasEventsPlugin extends Plugin
 		}
 		int minutes = Math.max(1, config.refreshMinutes());
 		refresher = executor.scheduleWithFixedDelay(this::refreshEvent, minutes, minutes, TimeUnit.MINUTES);
+	}
+
+	/**
+	 * Asks Wise Old Man what the clan has gained over a period. Their API is
+	 * public and read only, so this needs no key and goes straight out rather
+	 * than through the event board.
+	 */
+	void gained(String metric, String period)
+	{
+		VeritasEventsPanel p = panel;
+		int group = config.womGroupId();
+		if (p == null || group <= 0)
+		{
+			return;
+		}
+
+		Request request = new Request.Builder()
+			.url(WISE_OLD_MAN + group + "/gained?metric=" + metric + "&period=" + period + "&limit=25")
+			.header("User-Agent", "veritas-events RuneLite plugin")
+			.build();
+
+		okHttpClient.newCall(request).enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call call, IOException e)
+			{
+				log.debug("no gains from Wise Old Man", e);
+				p.setGained(null, "Could not reach Wise Old Man.");
+			}
+
+			@Override
+			public void onResponse(Call call, Response response)
+			{
+				try (ResponseBody body = response.body())
+				{
+					p.setGained(gson.fromJson(body.string(), JsonArray.class), null);
+				}
+				catch (Exception e)
+				{
+					log.debug("could not read the gains", e);
+					p.setGained(null, "Wise Old Man's answer could not be read.");
+				}
+			}
+		});
 	}
 
 	/** Sends the last thing again, for when the board was down at the time. */

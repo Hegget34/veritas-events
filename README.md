@@ -51,6 +51,9 @@ The sidebar panel is picked from a dropdown:
   a bar showing how many tiles your team has done, then the standings and who
   has sent the most drops, with your team and your own name picked out
 - **Clan** - whatever pages the board publishes, picked from a dropdown
+- **Gained** - what the clan has put on, from Wise Old Man. Pick any skill,
+  boss, Overall XP or efficient hours bossed, over today, the week, the month
+  or the year
 - **Loot Tracker** - how much you have sent this session, everything that went
   out with whether the board accepted it, and a **Send again** button for when
   the board was down at the time
@@ -143,6 +146,15 @@ Where those figures come from - Wise Old Man, TempleOSRS, DropTracker - is the
 board's business. It holds the group ids, does the fetching on a timer and
 hands the plugin a finished page, so one request goes out for the whole clan
 instead of one per member, and nobody has to paste an API key into a setting.
+
+## Wise Old Man
+
+The Gained view reads Wise Old Man's public API directly. It is read only and
+needs no key, so nothing is configured beyond the group id, which defaults to
+Veritas (13727) and can be set to 0 to turn the view off.
+
+Note that Wise Old Man tracks experience and kill counts, not coins. Anything
+about gp earned has to come from drops, which means the event board.
 
 ## The event password
 
