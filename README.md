@@ -42,15 +42,16 @@ it quietly with everything else. It defaults to 1,000,000 gp.
 
 ## The side panel
 
-The sidebar panel has three tabs:
+The sidebar panel has four tabs:
 
 - **Event** - the event name, whether it is live, how long is left, your team,
   and a bar showing how many tiles your team has done
 - **Teams** - the standings, and who has sent the most drops, with your team
   and your own name picked out
-- **Activity** - how much you have sent this session, everything that went out
-  with whether the board accepted it, and a **Send again** button for when the
-  board was down at the time
+- **Clan** - whatever pages the board publishes, picked from a dropdown
+- **Sent** - how much you have sent this session, everything that went out with
+  whether the board accepted it, and a **Send again** button for when the board
+  was down at the time
 
 All of it comes from the board, so an event that reports nothing still leaves a
 panel that works - it just shows less.
@@ -110,6 +111,36 @@ fills the panel from the answer:
 
 Every field is optional. A board that answers with nothing, or does not answer
 at all, still leaves a working panel - those parts just stay empty.
+
+## Clan pages
+
+The Clan tab is a chooser and a page of blocks, both supplied by the board:
+
+```json
+"pages": [
+  {
+    "name": "Skill of the Week",
+    "blocks": [
+      { "type": "heading", "text": "Skill of the Week" },
+      { "type": "text", "lines": ["Skill: Fishing", "Ends Sunday"] },
+      { "type": "stat", "label": "Total XP gained", "value": "15,203,809" },
+      { "type": "table", "columns": ["#", "Player", "XP"],
+        "rows": [["1", "Thrusin Beav", "3,596,038"], ["2", "WillimWallop", "2,356,300"]] },
+      { "type": "link", "label": "Competition page", "url": "https://wiseoldman.net/..." }
+    ]
+  }
+]
+```
+
+Five kinds of block - `heading`, `text`, `stat`, `table`, `link` - are enough
+for a home page, a hiscore table, a skill or boss of the week, or a hall of
+fame. The plugin does not know what any of it means, which is the point: new
+pages are a change on the board, not a new release of the plugin.
+
+Where those figures come from - Wise Old Man, TempleOSRS, DropTracker - is the
+board's business. It holds the group ids, does the fetching on a timer and
+hands the plugin a finished page, so one request goes out for the whole clan
+instead of one per member, and nobody has to paste an API key into a setting.
 
 ## The event password
 

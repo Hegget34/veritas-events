@@ -23,6 +23,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
@@ -42,6 +43,7 @@ class VeritasEventsPanel extends PluginPanel
 {
 	private static final int HISTORY = 15;
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
+	private static final Color BLUE = new Color(0x46, 0x8F, 0xB1);
 	private static final int BAR_HEIGHT = 16;
 
 	private final VeritasEventsConfig config;
@@ -57,7 +59,13 @@ class VeritasEventsPanel extends PluginPanel
 
 	private final JPanel eventTab = column();
 	private final JPanel teamTab = column();
+	private final JPanel clanTab = column();
 	private final JPanel activityTab = column();
+
+	private final JComboBox<String> pageSelect = new JComboBox<>();
+	private final JPanel pageContent = column();
+	private JsonObject lastDetails;
+	private boolean fillingPages;
 
 	private final JButton resend = new JButton("Send again");
 	private final Runnable onRefresh;
@@ -87,18 +95,36 @@ class VeritasEventsPanel extends PluginPanel
 		JPanel display = new JPanel(new BorderLayout());
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		MaterialTabGroup tabs = new MaterialTabGroup(display);
-		tabs.setLayout(new GridLayout(1, 3, 6, 0));
+		tabs.setLayout(new GridLayout(1, 4, 4, 0));
 		tabs.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
 		MaterialTab first = new MaterialTab("Event", tabs, eventTab);
 		tabs.addTab(first);
 		tabs.addTab(new MaterialTab("Teams", tabs, teamTab));
-		tabs.addTab(new MaterialTab("Activity", tabs, activityTab));
+		tabs.addTab(new MaterialTab("Clan", tabs, clanTab));
+		tabs.addTab(new MaterialTab("Sent", tabs, activityTab));
 		tabs.select(first);
 		tabs.setAlignmentX(Component.LEFT_ALIGNMENT);
 		top.add(tabs);
 
 		add(top, BorderLayout.NORTH);
 		add(display, BorderLayout.CENTER);
+
+		pageSelect.setFont(FontManager.getRunescapeSmallFont());
+		pageSelect.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		pageSelect.setForeground(Color.WHITE);
+		pageSelect.setFocusable(false);
+		pageSelect.setAlignmentX(Component.LEFT_ALIGNMENT);
+		pageSelect.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+		pageSelect.addActionListener(e ->
+		{
+			if (!fillingPages)
+			{
+				drawPage();
+			}
+		});
+		clanTab.add(pageSelect);
+		clanTab.add(Box.createVerticalStrut(6));
+		clanTab.add(pageContent);
 
 		setEvent(null);
 		drawActivity();
@@ -160,8 +186,10 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		SwingUtilities.invokeLater(() ->
 		{
+			lastDetails = details;
 			drawEvent(details);
 			drawTeams(details);
+			drawPages(details);
 		});
 	}
 
@@ -212,40 +240,7 @@ class VeritasEventsPanel extends PluginPanel
 				eventTab.add(bar(progress));
 			}
 
-			JsonArray sections = array(details, "sections");
-			if (sections != null)
-			{
-				for (JsonElement element : sections)
-				{
-					JsonObject section = element.getAsJsonObject();
-					eventTab.add(Box.createVerticalStrut(8));
-					eventTab.add(title(text(section, "title")));
-					JsonArray lines = array(section, "lines");
-					if (lines != null)
-					{
-						for (JsonElement entry : lines)
-						{
-							eventTab.add(line(entry.getAsString(), Color.LIGHT_GRAY));
-						}
-					}
-				}
-			}
-
-			JsonArray links = array(details, "links");
-			if (links != null)
-			{
-				eventTab.add(Box.createVerticalStrut(8));
-				for (JsonElement element : links)
-				{
-					JsonObject link = element.getAsJsonObject();
-					JButton button = link(text(link, "label"), text(link, "url"));
-					if (button != null)
-					{
-						eventTab.add(button);
-						eventTab.add(Box.createVerticalStrut(2));
-					}
-				}
-			}
+			blocks(eventTab, array(details, "blocks"));
 		}
 
 		eventTab.add(Box.createVerticalStrut(8));
@@ -363,6 +358,153 @@ class VeritasEventsPanel extends PluginPanel
 
 		teamTab.revalidate();
 		teamTab.repaint();
+	}
+
+	/** Fills the page chooser from the board, keeping whatever page was open. */
+	private void drawPages(@Nullable JsonObject details)
+	{
+		String open = (String) pageSelect.getSelectedItem();
+		JsonArray pages = array(details, "pages");
+
+		fillingPages = true;
+		pageSelect.removeAllItems();
+		if (pages != null)
+		{
+			for (JsonElement element : pages)
+			{
+				pageSelect.addItem(text(element.getAsJsonObject(), "name"));
+			}
+			if (open != null)
+			{
+				pageSelect.setSelectedItem(open);
+			}
+		}
+		fillingPages = false;
+
+		pageSelect.setVisible(pageSelect.getItemCount() > 0);
+		drawPage();
+	}
+
+	/** Draws whichever page is chosen. */
+	private void drawPage()
+	{
+		pageContent.removeAll();
+
+		JsonArray pages = array(lastDetails, "pages");
+		int index = pageSelect.getSelectedIndex();
+		if (pages == null || index < 0 || index >= pages.size())
+		{
+			pageContent.add(hint("Clan pages show here once the board reports them."));
+		}
+		else
+		{
+			blocks(pageContent, array(pages.get(index).getAsJsonObject(), "blocks"));
+		}
+
+		pageContent.revalidate();
+		pageContent.repaint();
+	}
+
+	/**
+	 * Draws a page out of the board's building blocks. Everything a clan page
+	 * needs - a heading, some lines, a table of names and figures, a big number
+	 * or a link - without the plugin knowing what any of it means.
+	 */
+	private void blocks(JPanel into, @Nullable JsonArray blocks)
+	{
+		if (blocks == null)
+		{
+			return;
+		}
+
+		for (JsonElement element : blocks)
+		{
+			JsonObject block = element.getAsJsonObject();
+			switch (text(block, "type"))
+			{
+				case "heading":
+					into.add(Box.createVerticalStrut(8));
+					into.add(title(text(block, "text")));
+					break;
+
+				case "text":
+					JsonArray lines = array(block, "lines");
+					if (lines != null)
+					{
+						for (JsonElement entry : lines)
+						{
+							into.add(line(entry.getAsString(), Color.LIGHT_GRAY));
+						}
+					}
+					break;
+
+				case "stat":
+					JLabel figure = line(text(block, "value"), GOLD);
+					figure.setFont(FontManager.getRunescapeBoldFont());
+					into.add(figure);
+					into.add(line(text(block, "label"), Color.GRAY));
+					break;
+
+				case "table":
+					into.add(table(block));
+					break;
+
+				case "link":
+					JButton button = link(text(block, "label"), text(block, "url"));
+					if (button != null)
+					{
+						into.add(Box.createVerticalStrut(2));
+						into.add(button);
+					}
+					break;
+
+				default:
+					break;
+			}
+		}
+	}
+
+	/** A table of columns and rows, as the hiscore style pages use. */
+	private static JPanel table(JsonObject block)
+	{
+		JsonArray columns = array(block, "columns");
+		JsonArray rows = array(block, "rows");
+		int width = columns == null ? 0 : columns.size();
+
+		JPanel table = new JPanel(new GridLayout(0, Math.max(1, width), 4, 2));
+		table.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		table.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+		table.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		if (columns != null)
+		{
+			for (JsonElement column : columns)
+			{
+				JLabel head = new JLabel(column.getAsString());
+				head.setFont(FontManager.getRunescapeSmallFont());
+				head.setForeground(BLUE);
+				table.add(head);
+			}
+		}
+
+		if (rows != null)
+		{
+			for (JsonElement element : rows)
+			{
+				JsonArray cells = element.getAsJsonArray();
+				for (int i = 0; i < Math.max(width, cells.size()); i++)
+				{
+					JLabel cell = new JLabel(i < cells.size() ? cells.get(i).getAsString() : "");
+					cell.setFont(FontManager.getRunescapeSmallFont());
+					// The last column carries the figure, so pick it out.
+					cell.setForeground(i == width - 1 && width > 1 ? GOLD : Color.WHITE);
+					table.add(cell);
+				}
+			}
+		}
+
+		table.setMaximumSize(new Dimension(Integer.MAX_VALUE, table.getPreferredSize().height));
+		return table;
 	}
 
 	/** Records one send. items is a flat list of id, quantity pairs. */
