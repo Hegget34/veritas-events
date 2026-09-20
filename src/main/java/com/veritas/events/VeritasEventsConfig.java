@@ -5,10 +5,14 @@
  */
 package com.veritas.events;
 
+import java.awt.Color;
+import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
+import net.runelite.client.config.Range;
+import net.runelite.client.config.Units;
 
 @ConfigGroup(VeritasEventsConfig.GROUP)
 public interface VeritasEventsConfig extends Config
@@ -21,6 +25,9 @@ public interface VeritasEventsConfig extends Config
 	@ConfigSection(name = "What to send", description = "Choose which things get reported", position = 1)
 	String sendSection = "send";
 
+	@ConfigSection(name = "Overlay", description = "Stamp the game window while you play", position = 2)
+	String overlaySection = "overlay";
+
 	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 0, section = eventSection,
 		description = "The address your event organiser gave you. Leave blank to turn the plugin off.")
 	default String eventUrl()
@@ -28,11 +35,20 @@ public interface VeritasEventsConfig extends Config
 		return "";
 	}
 
-	@ConfigItem(keyName = "eventKey", name = "Event password", position = 1, section = eventSection, secret = true,
-		description = "The password for this event. Keep it to yourself.")
+	@ConfigItem(keyName = "eventKey", name = "Event key", position = 1, section = eventSection, secret = true,
+		description = "The key that lets you post to this board. Keep it to yourself.")
 	default String eventKey()
 	{
 		return "";
+	}
+
+	@ConfigItem(keyName = "refreshMinutes", name = "Refresh every", position = 3, section = eventSection,
+		description = "How often to ask the board for the latest standings, in minutes.")
+	@Range(min = 1, max = 60)
+	@Units(Units.MINUTES)
+	default int refreshMinutes()
+	{
+		return 5;
 	}
 
 	@ConfigItem(keyName = "sendScreenshot", name = "Include a screenshot", position = 2, section = eventSection,
@@ -70,10 +86,40 @@ public interface VeritasEventsConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(keyName = "showOverlay", name = "Display overlay", position = 0, section = overlaySection,
+		description = "Draw the event password and the time on top of the game.")
+	default boolean showOverlay()
+	{
+		return true;
+	}
 
+	@ConfigItem(keyName = "eventPassword", name = "Event password", position = 1, section = overlaySection,
+		description = "The word your organiser announced. Shown on screen so your screenshots prove when they were taken.")
+	default String eventPassword()
+	{
+		return "";
+	}
 
+	@ConfigItem(keyName = "showDateTime", name = "Date and time", position = 2, section = overlaySection,
+		description = "Show the current date and time in UTC under the password.")
+	default boolean showDateTime()
+	{
+		return true;
+	}
 
+	@Alpha
+	@ConfigItem(keyName = "passwordColor", name = "Password colour", position = 3, section = overlaySection,
+		description = "Pick a colour a screenshot cannot easily be faked with.")
+	default Color passwordColor()
+	{
+		return Color.YELLOW;
+	}
 
-
-
+	@Alpha
+	@ConfigItem(keyName = "dateTimeColor", name = "Date and time colour", position = 4, section = overlaySection,
+		description = "Make this different to the password colour.")
+	default Color dateTimeColor()
+	{
+		return new Color(0x46, 0x8F, 0xB1);
+	}
 }

@@ -29,7 +29,7 @@ your organiser gives you one.
 1. Install **Veritas Events** from the RuneLite Plugin Hub
 2. Open its settings (the cog next to the plugin name)
 3. Paste the **Event URL** your organiser gave you
-4. Paste the **Event password** for that event
+4. Paste the **Event key** for that event
 5. Choose what to send, and whether to include screenshots
 
 That's it. Play normally and your drops turn up on the board.
@@ -110,6 +110,17 @@ fills the panel from the answer:
 
 Every field is optional. A board that answers with nothing, or does not answer
 at all, still leaves a working panel - those parts just stay empty.
+
+## The event password
+
+Events are often run with a password the organiser announces, so a screenshot
+can be shown to have been taken during the event rather than dug out of an old
+folder. The plugin draws it over the game along with the date and time in UTC,
+in colours you pick.
+
+Type it into **Event password** under Overlay, or let the board set it for
+everyone by returning `password` in its answer, and nobody has to be told it
+at all.
 
 ## Screenshots
 

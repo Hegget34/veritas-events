@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -44,6 +47,7 @@ import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.DrawManager;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.Text;
 import okhttp3.Call;
@@ -90,9 +94,20 @@ public class VeritasEventsPlugin extends Plugin
 	@Inject
 	private ClientToolbar clientToolbar;
 
+	@Inject
+	private OverlayManager overlayManager;
+
+	@Inject
+	private VeritasEventsOverlay overlay;
+
+	@Inject
+	private ScheduledExecutorService executor;
+
 	private VeritasEventsPanel panel;
 	private NavigationButton navButton;
 	private Runnable lastSend;
+	private ScheduledFuture<?> refresher;
+	private String boardPassword = "";
 
 	@Provides
 	VeritasEventsConfig provideConfig(ConfigManager configManager)
@@ -111,12 +126,20 @@ public class VeritasEventsPlugin extends Plugin
 			.panel(panel)
 			.build();
 		clientToolbar.addNavigation(navButton);
+		overlayManager.add(overlay);
 		refreshEvent();
+		reschedule();
 	}
 
 	@Override
 	protected void shutDown()
 	{
+		if (refresher != null)
+		{
+			refresher.cancel(false);
+			refresher = null;
+		}
+		overlayManager.remove(overlay);
 		clientToolbar.removeNavigation(navButton);
 		panel = null;
 		navButton = null;
@@ -139,6 +162,7 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			panel.refresh();
 			refreshEvent();
+			reschedule();
 		}
 	}
 
@@ -276,6 +300,26 @@ public class VeritasEventsPlugin extends Plugin
 		}
 	}
 
+	/**
+	 * The word shown on screen. The board can set it for everyone, so nobody has
+	 * to be told it; otherwise it is whatever you typed into the settings.
+	 */
+	String password()
+	{
+		return boardPassword.isEmpty() ? config.eventPassword().trim() : boardPassword;
+	}
+
+	/** Asks the board for the standings again every few minutes. */
+	private void reschedule()
+	{
+		if (refresher != null)
+		{
+			refresher.cancel(false);
+		}
+		int minutes = Math.max(1, config.refreshMinutes());
+		refresher = executor.scheduleWithFixedDelay(this::refreshEvent, minutes, minutes, TimeUnit.MINUTES);
+	}
+
 	/** Sends the last thing again, for when the board was down at the time. */
 	private void resend()
 	{
@@ -298,6 +342,7 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			return;
 		}
+		boardPassword = "";
 		p.setEvent(null);
 		if (url.isEmpty())
 		{
@@ -322,7 +367,10 @@ public class VeritasEventsPlugin extends Plugin
 			{
 				try (ResponseBody body = response.body())
 				{
-					p.setEvent(gson.fromJson(body.string(), JsonObject.class));
+					JsonObject details = gson.fromJson(body.string(), JsonObject.class);
+					boardPassword = details != null && details.has("password")
+						? details.get("password").getAsString() : "";
+					p.setEvent(details);
 				}
 				catch (Exception e)
 				{

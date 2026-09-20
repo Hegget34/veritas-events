@@ -34,6 +34,7 @@ import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.ProgressBar;
 import net.runelite.client.ui.components.materialtabs.MaterialTab;
 import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
+import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.QuantityFormatter;
 
 /** The sidebar panel: what the event is, how the teams stand, and what has been sent. */
@@ -42,7 +43,6 @@ class VeritasEventsPanel extends PluginPanel
 	private static final int HISTORY = 15;
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final int BAR_HEIGHT = 16;
-	private static final int MAX_TASKS = 20;
 
 	private final VeritasEventsConfig config;
 	private final ItemManager itemManager;
@@ -212,22 +212,38 @@ class VeritasEventsPanel extends PluginPanel
 				eventTab.add(bar(progress));
 			}
 
-			JsonArray tasks = array(details, "tasks");
-			if (tasks != null)
+			JsonArray sections = array(details, "sections");
+			if (sections != null)
+			{
+				for (JsonElement element : sections)
+				{
+					JsonObject section = element.getAsJsonObject();
+					eventTab.add(Box.createVerticalStrut(8));
+					eventTab.add(title(text(section, "title")));
+					JsonArray lines = array(section, "lines");
+					if (lines != null)
+					{
+						for (JsonElement entry : lines)
+						{
+							eventTab.add(line(entry.getAsString(), Color.LIGHT_GRAY));
+						}
+					}
+				}
+			}
+
+			JsonArray links = array(details, "links");
+			if (links != null)
 			{
 				eventTab.add(Box.createVerticalStrut(8));
-				eventTab.add(title(orElse(text(details, "tasksLabel"), "Still needed")));
-				int shown = 0;
-				for (JsonElement element : tasks)
+				for (JsonElement element : links)
 				{
-					if (shown++ >= MAX_TASKS)
+					JsonObject link = element.getAsJsonObject();
+					JButton button = link(text(link, "label"), text(link, "url"));
+					if (button != null)
 					{
-						eventTab.add(line("and " + (tasks.size() - MAX_TASKS) + " more", Color.GRAY));
-						break;
+						eventTab.add(button);
+						eventTab.add(Box.createVerticalStrut(2));
 					}
-					JsonObject task = element.getAsJsonObject();
-					boolean done = has(task, "done") && task.get("done").getAsBoolean();
-					eventTab.add(row((done ? "✓ " : "• ") + text(task, "name"), "", done));
 				}
 			}
 		}
@@ -241,6 +257,26 @@ class VeritasEventsPanel extends PluginPanel
 
 		eventTab.revalidate();
 		eventTab.repaint();
+	}
+
+	/**
+	 * A button that opens one of the board's links. Only ordinary web addresses
+	 * are offered, and nothing opens until the player clicks it.
+	 */
+	@Nullable
+	private static JButton link(String label, String url)
+	{
+		if (label.isEmpty() || !(url.startsWith("https://") || url.startsWith("http://")))
+		{
+			return null;
+		}
+		JButton button = new JButton(label);
+		button.setFont(FontManager.getRunescapeSmallFont());
+		button.setToolTipText(url);
+		button.setAlignmentX(Component.LEFT_ALIGNMENT);
+		button.setMaximumSize(new Dimension(Integer.MAX_VALUE, button.getPreferredSize().height));
+		button.addActionListener(e -> LinkBrowser.browse(url));
+		return button;
 	}
 
 	/** Your team, plus whatever figures this event cares about. */
