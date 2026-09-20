@@ -216,8 +216,21 @@ class VeritasEventsPanel extends PluginPanel
 				showView();
 			}
 		});
+		JButton refreshButton = new JButton(reload());
+		refreshButton.setToolTipText("Ask the board for the latest");
+		refreshButton.setPreferredSize(new Dimension(30, 28));
+		refreshButton.setFocusable(false);
+		refreshButton.addActionListener(e -> onRefresh.run());
+
+		JPanel chooser = new JPanel(new BorderLayout(4, 0));
+		chooser.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		chooser.setAlignmentX(Component.LEFT_ALIGNMENT);
+		chooser.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+		chooser.add(viewSelect, BorderLayout.CENTER);
+		chooser.add(refreshButton, BorderLayout.EAST);
+
 		top.add(caption("View"));
-		top.add(viewSelect);
+		top.add(chooser);
 		top.add(Box.createVerticalStrut(12));
 
 		add(top, BorderLayout.NORTH);
@@ -471,6 +484,22 @@ class VeritasEventsPanel extends PluginPanel
 		return new ImageIcon(image);
 	}
 
+	/** A circular arrow for the refresh button. */
+	private static ImageIcon reload()
+	{
+		BufferedImage image = new BufferedImage(14, 14, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = image.createGraphics();
+		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		graphics.setColor(GOLD);
+		graphics.setStroke(new BasicStroke(2f));
+		// Most of a circle, with an arrow head where it stops.
+		graphics.drawArc(2, 2, 10, 10, 60, 290);
+		graphics.drawLine(11, 1, 11, 5);
+		graphics.drawLine(11, 5, 7, 5);
+		graphics.dispose();
+		return new ImageIcon(image);
+	}
+
 	/** A chevron, pointing down to expand and up to collapse. */
 	private static ImageIcon chevron(boolean down)
 	{
@@ -616,13 +645,6 @@ class VeritasEventsPanel extends PluginPanel
 		}
 
 		teams(eventTab, details);
-
-		eventTab.add(Box.createVerticalStrut(12));
-		JButton refreshButton = new JButton("Refresh");
-		refreshButton.setFont(FontManager.getRunescapeFont());
-		refreshButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-		refreshButton.addActionListener(e -> onRefresh.run());
-		eventTab.add(refreshButton);
 
 		eventTab.revalidate();
 		eventTab.repaint();
