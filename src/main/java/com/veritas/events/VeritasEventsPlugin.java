@@ -42,6 +42,7 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.ui.ClientToolbar;
@@ -96,6 +97,9 @@ public class VeritasEventsPlugin extends Plugin
 	private ClientToolbar clientToolbar;
 
 	@Inject
+	private PluginManager pluginManager;
+
+	@Inject
 	private OverlayManager overlayManager;
 
 	@Inject
@@ -121,7 +125,7 @@ public class VeritasEventsPlugin extends Plugin
 	{
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
 		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon),
-			this::resend, this::refreshEvent, this::gained);
+			this::resend, this::refreshEvent, this::gained, this::lootTrackerOff);
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas")
 			.icon(icon)
@@ -369,6 +373,45 @@ public class VeritasEventsPlugin extends Plugin
 		});
 	}
 
+	/**
+	 * Drops reach us as RuneLite's own LootReceived, which only its Loot Tracker
+	 * plugin ever posts. With that switched off nothing arrives and there is no
+	 * error to show for it, so say so rather than look broken.
+	 */
+	boolean lootTrackerOff()
+	{
+		for (Plugin plugin : pluginManager.getPlugins())
+		{
+			PluginDescriptor descriptor = plugin.getClass().getAnnotation(PluginDescriptor.class);
+			if (descriptor != null && "Loot Tracker".equals(descriptor.name()))
+			{
+				return !pluginManager.isPluginEnabled(plugin);
+			}
+		}
+		return false;
+	}
+
+	/** The start of whatever came back, so a misconfigured board says so itself. */
+	private static String summary(String answer)
+	{
+		// The hint this ends up in is rendered as HTML, and a misbehaving board
+		// often answers with an HTML error page, so keep it printable and inert.
+		StringBuilder clean = new StringBuilder();
+		for (int i = 0; i < answer.length(); i++)
+		{
+			if (clean.length() >= 80)
+			{
+				clean.append("...");
+				break;
+			}
+			char c = answer.charAt(i);
+			clean.append(c < ' ' || c == '<' || c == '>' || c == '&' ? ' ' : c);
+		}
+
+		String trimmed = clean.toString().trim();
+		return trimmed.isEmpty() ? "nothing at all." : trimmed;
+	}
+
 	/** Sends the last thing again, for when the board was down at the time. */
 	private void resend()
 	{
@@ -415,17 +458,19 @@ public class VeritasEventsPlugin extends Plugin
 			@Override
 			public void onResponse(Call call, Response response)
 			{
+				String answer = "";
 				try (ResponseBody body = response.body())
 				{
-					JsonObject details = gson.fromJson(body.string(), JsonObject.class);
+					answer = body.string();
+					JsonObject details = gson.fromJson(answer, JsonObject.class);
 					boardPassword = details != null && details.has("password")
 						? details.get("password").getAsString() : "";
 					p.setEvent(details, null);
 				}
 				catch (Exception e)
 				{
-					log.warn("could not read event details", e);
-					p.setEvent(null, "The board answered, but not with readable JSON.");
+					log.warn("could not read event details: {}", answer, e);
+					p.setEvent(null, "The board answered with: " + summary(answer));
 				}
 			}
 		});

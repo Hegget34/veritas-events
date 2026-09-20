@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -119,6 +120,7 @@ class VeritasEventsPanel extends PluginPanel
 	private String metric = SKILLS[0];
 	private boolean statsAsked;
 	private final BiConsumer<String, String> onGained;
+	private final BooleanSupplier lootTrackerOff;
 	private final JPanel eventTab = column();
 	private final JPanel activityTab = column();
 
@@ -139,12 +141,13 @@ class VeritasEventsPanel extends PluginPanel
 
 	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager,
 		@Nullable ImageIcon logo, Runnable onResend, Runnable onRefresh,
-		BiConsumer<String, String> onGained)
+		BiConsumer<String, String> onGained, BooleanSupplier lootTrackerOff)
 	{
 		this.config = config;
 		this.itemManager = itemManager;
 		this.onRefresh = onRefresh;
 		this.onGained = onGained;
+		this.lootTrackerOff = lootTrackerOff;
 
 		setLayout(new BorderLayout());
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
@@ -1009,7 +1012,10 @@ class VeritasEventsPanel extends PluginPanel
 		List<Sent> entries = entries();
 		if (entries.isEmpty())
 		{
-			activityTab.add(hint("Nothing sent yet."));
+			activityTab.add(hint(lootTrackerOff.getAsBoolean()
+				? "Switch on RuneLite's own Loot Tracker plugin. Drops are seen "
+					+ "through it, so with it off nothing reaches here."
+				: "No drops yet."));
 			return;
 		}
 		for (Sent entry : entries)

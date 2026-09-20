@@ -25,6 +25,12 @@ you killed, your RSN and the time — plus a screenshot, if you leave that on.
 Nothing is sent until you paste in an event URL, so the plugin is inert until
 your organiser gives you one.
 
+## Before anything else
+
+Drops reach this plugin as RuneLite's own `LootReceived` event, and only
+RuneLite's **Loot Tracker** plugin ever posts it. Leave that one switched on or
+nothing will arrive here, however the rest is set up. It is on by default.
+
 ## Setup
 
 1. Install **Veritas** from the RuneLite Plugin Hub
