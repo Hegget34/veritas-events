@@ -5,7 +5,7 @@ pages and stats in the sidebar, and drops sent straight to whatever event is
 running, so nobody has to screenshot and type them in by hand.
 
 Built for the Veritas OSRS clan. The event URL is just a setting, so **anyone
-in the clan can host an event** — stand up a board, hand out its URL and
+in the clan can host an event** - see [HOSTING.md](HOSTING.md) — stand up a board, hand out its URL and
 password, and players point the plugin at it. Nothing about the plugin is tied
 to one event or one organiser.
 
