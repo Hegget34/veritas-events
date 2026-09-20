@@ -74,6 +74,8 @@ class VeritasEventsPanel extends PluginPanel
 
 	private final JComboBox<String> viewSelect = new JComboBox<>();
 	private final JComboBox<String> pageSelect = new JComboBox<>();
+	private final JLabel pageCaption = caption("Page");
+	private String problem = "";
 	private final JPanel display = new JPanel(new BorderLayout());
 	private final JPanel pageContent = column();
 	private JsonObject lastDetails;
@@ -130,12 +132,12 @@ class VeritasEventsPanel extends PluginPanel
 				drawPage();
 			}
 		});
-		clanTab.add(caption("Page"));
+		clanTab.add(pageCaption);
 		clanTab.add(pageSelect);
 		clanTab.add(Box.createVerticalStrut(10));
 		clanTab.add(pageContent);
 
-		setEvent(null);
+		setEvent(null, null);
 		drawActivity();
 		refresh();
 	}
@@ -285,10 +287,11 @@ class VeritasEventsPanel extends PluginPanel
 	 * Fills the views from whatever the board reported. Every field
 	 * is optional, so a board that answers with nothing still leaves a usable panel.
 	 */
-	void setEvent(@Nullable JsonObject details)
+	void setEvent(@Nullable JsonObject details, @Nullable String problem)
 	{
 		SwingUtilities.invokeLater(() ->
 		{
+			this.problem = problem == null ? "" : problem;
 			lastDetails = details;
 			drawHome(details);
 			drawEvent(details);
@@ -303,9 +306,10 @@ class VeritasEventsPanel extends PluginPanel
 		String name = text(details, "event");
 		if (name.isEmpty())
 		{
-			eventTab.add(hint(config.eventUrl().trim().isEmpty()
-				? "Paste the event URL your organiser gave you into the settings."
-				: "Connected, but this board is not reporting event details yet."));
+			eventTab.add(hint(!problem.isEmpty() ? problem
+				: config.eventUrl().trim().isEmpty()
+					? "Paste the event URL your organiser gave you into the settings."
+					: "Connected, but this board is not reporting event details yet."));
 		}
 		else
 		{
@@ -483,7 +487,9 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		fillingPages = false;
 
-		pageSelect.setVisible(pageSelect.getItemCount() > 0);
+		boolean any = pageSelect.getItemCount() > 0;
+		pageSelect.setVisible(any);
+		pageCaption.setVisible(any);
 		drawPage();
 	}
 
@@ -496,7 +502,8 @@ class VeritasEventsPanel extends PluginPanel
 		int index = pageSelect.getSelectedIndex();
 		if (pages == null || index < 0 || index >= pages.size())
 		{
-			pageContent.add(hint("Clan pages show here once the board reports them."));
+			pageContent.add(hint(!problem.isEmpty() ? problem
+				: "Clan pages show here once the board reports them."));
 		}
 		else
 		{

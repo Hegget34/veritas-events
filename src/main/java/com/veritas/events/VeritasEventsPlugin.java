@@ -344,7 +344,7 @@ public class VeritasEventsPlugin extends Plugin
 			return;
 		}
 		boardPassword = "";
-		p.setEvent(null);
+		p.setEvent(null, null);
 		if (url.isEmpty())
 		{
 			return;
@@ -361,6 +361,7 @@ public class VeritasEventsPlugin extends Plugin
 			public void onFailure(Call call, IOException e)
 			{
 				log.debug("no event details", e);
+				p.setEvent(null, "Could not reach the board. Check the event URL.");
 			}
 
 			@Override
@@ -371,11 +372,12 @@ public class VeritasEventsPlugin extends Plugin
 					JsonObject details = gson.fromJson(body.string(), JsonObject.class);
 					boardPassword = details != null && details.has("password")
 						? details.get("password").getAsString() : "";
-					p.setEvent(details);
+					p.setEvent(details, null);
 				}
 				catch (Exception e)
 				{
-					log.debug("could not read event details", e);
+					log.warn("could not read event details", e);
+					p.setEvent(null, "The board answered, but not with readable JSON.");
 				}
 			}
 		});
