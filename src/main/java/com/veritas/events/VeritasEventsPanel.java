@@ -43,7 +43,6 @@ class VeritasEventsPanel extends PluginPanel
 {
 	private static final int HISTORY = 15;
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
-	private static final Color BLUE = new Color(0x46, 0x8F, 0xB1);
 	private static final int BAR_HEIGHT = 16;
 
 	private final VeritasEventsConfig config;
@@ -81,7 +80,7 @@ class VeritasEventsPanel extends PluginPanel
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		resend.setFont(FontManager.getRunescapeSmallFont());
+		resend.setFont(FontManager.getRunescapeFont());
 		resend.setEnabled(false);
 		resend.setToolTipText("Send the last thing again, if the board missed it");
 		resend.addActionListener(e -> onResend.run());
@@ -95,7 +94,7 @@ class VeritasEventsPanel extends PluginPanel
 		JPanel display = new JPanel(new BorderLayout());
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		MaterialTabGroup tabs = new MaterialTabGroup(display);
-		tabs.setLayout(new GridLayout(1, 4, 4, 0));
+		tabs.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 0));
 		tabs.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
 		MaterialTab first = new MaterialTab("Event", tabs, eventTab);
 		tabs.addTab(first);
@@ -109,7 +108,7 @@ class VeritasEventsPanel extends PluginPanel
 		add(top, BorderLayout.NORTH);
 		add(display, BorderLayout.CENTER);
 
-		pageSelect.setFont(FontManager.getRunescapeSmallFont());
+		pageSelect.setFont(FontManager.getRunescapeFont());
 		pageSelect.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		pageSelect.setForeground(Color.WHITE);
 		pageSelect.setFocusable(false);
@@ -150,9 +149,9 @@ class VeritasEventsPanel extends PluginPanel
 		JLabel title = new JLabel("Veritas Events");
 		title.setFont(FontManager.getRunescapeBoldFont());
 		title.setForeground(GOLD);
-		rsn.setFont(FontManager.getRunescapeSmallFont());
+		rsn.setFont(FontManager.getRunescapeFont());
 		rsn.setForeground(Color.WHITE);
-		status.setFont(FontManager.getRunescapeSmallFont());
+		status.setFont(FontManager.getRunescapeFont());
 
 		names.add(title);
 		names.add(rsn);
@@ -216,7 +215,7 @@ class VeritasEventsPanel extends PluginPanel
 			if (!phase.isEmpty())
 			{
 				JLabel badge = new JLabel(phase.toUpperCase());
-				badge.setFont(FontManager.getRunescapeSmallFont());
+				badge.setFont(FontManager.getRunescapeFont());
 				badge.setForeground("live".equalsIgnoreCase(phase)
 					? ColorScheme.PROGRESS_COMPLETE_COLOR
 					: "ended".equalsIgnoreCase(phase) ? Color.GRAY : GOLD);
@@ -245,7 +244,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		eventTab.add(Box.createVerticalStrut(8));
 		JButton refreshButton = new JButton("Refresh");
-		refreshButton.setFont(FontManager.getRunescapeSmallFont());
+		refreshButton.setFont(FontManager.getRunescapeFont());
 		refreshButton.setAlignmentX(Component.LEFT_ALIGNMENT);
 		refreshButton.addActionListener(e -> onRefresh.run());
 		eventTab.add(refreshButton);
@@ -266,7 +265,7 @@ class VeritasEventsPanel extends PluginPanel
 			return null;
 		}
 		JButton button = new JButton(label);
-		button.setFont(FontManager.getRunescapeSmallFont());
+		button.setFont(FontManager.getRunescapeFont());
 		button.setToolTipText(url);
 		button.setAlignmentX(Component.LEFT_ALIGNMENT);
 		button.setMaximumSize(new Dimension(Integer.MAX_VALUE, button.getPreferredSize().height));
@@ -464,47 +463,49 @@ class VeritasEventsPanel extends PluginPanel
 		}
 	}
 
-	/** A table of columns and rows, as the hiscore style pages use. */
+	/**
+	 * A table, drawn as one line per row: everything but the last column on the
+	 * left and the figure on the right. Equal width columns waste most of a
+	 * 225px sidebar on the rank number.
+	 */
 	private static JPanel table(JsonObject block)
 	{
 		JsonArray columns = array(block, "columns");
 		JsonArray rows = array(block, "rows");
-		int width = columns == null ? 0 : columns.size();
 
-		JPanel table = new JPanel(new GridLayout(0, Math.max(1, width), 4, 2));
-		table.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		table.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+		JPanel table = column();
 		table.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		if (columns != null)
+		if (columns != null && columns.size() > 0)
 		{
-			for (JsonElement column : columns)
-			{
-				JLabel head = new JLabel(column.getAsString());
-				head.setFont(FontManager.getRunescapeSmallFont());
-				head.setForeground(BLUE);
-				table.add(head);
-			}
+			table.add(cells(lead(columns), last(columns), GOLD, GOLD));
 		}
 
 		if (rows != null)
 		{
 			for (JsonElement element : rows)
 			{
-				JsonArray cells = element.getAsJsonArray();
-				for (int i = 0; i < Math.max(width, cells.size()); i++)
-				{
-					JLabel cell = new JLabel(i < cells.size() ? cells.get(i).getAsString() : "");
-					cell.setFont(FontManager.getRunescapeSmallFont());
-					// The last column carries the figure, so pick it out.
-					cell.setForeground(i == width - 1 && width > 1 ? GOLD : Color.WHITE);
-					table.add(cell);
-				}
+				JsonArray row = element.getAsJsonArray();
+				table.add(cells(lead(row), last(row), Color.WHITE, GOLD));
 			}
 		}
-
-		table.setMaximumSize(new Dimension(Integer.MAX_VALUE, table.getPreferredSize().height));
 		return table;
+	}
+
+	/** Everything but the last cell, run together. */
+	private static String lead(JsonArray row)
+	{
+		StringBuilder text = new StringBuilder();
+		for (int i = 0; i < row.size() - 1; i++)
+		{
+			text.append(text.length() == 0 ? "" : "  ").append(row.get(i).getAsString());
+		}
+		return text.length() == 0 && row.size() == 1 ? row.get(0).getAsString() : text.toString();
+	}
+
+	private static String last(JsonArray row)
+	{
+		return row.size() > 1 ? row.get(row.size() - 1).getAsString() : "";
 	}
 
 	/** Records one send. items is a flat list of id, quantity pairs. */
@@ -580,14 +581,14 @@ class VeritasEventsPanel extends PluginPanel
 		top.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 
 		JLabel source = new JLabel(entry.source);
-		source.setFont(FontManager.getRunescapeSmallFont());
+		source.setFont(FontManager.getRunescapeFont());
 		source.setForeground(entry.ok ? Color.WHITE : ColorScheme.PROGRESS_ERROR_COLOR);
 		top.add(source, BorderLayout.WEST);
 
 		if (entry.value > 0)
 		{
 			JLabel value = new JLabel(QuantityFormatter.quantityToStackSize(entry.value) + " gp");
-			value.setFont(FontManager.getRunescapeSmallFont());
+			value.setFont(FontManager.getRunescapeFont());
 			value.setForeground(entry.value >= config.bigDropValue() ? GOLD : Color.GRAY);
 			top.add(value, BorderLayout.EAST);
 		}
@@ -633,12 +634,12 @@ class VeritasEventsPanel extends PluginPanel
 		panel.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 
 		JLabel top = new JLabel(value, SwingConstants.CENTER);
-		top.setFont(FontManager.getRunescapeSmallFont());
+		top.setFont(FontManager.getRunescapeFont());
 		top.setForeground(GOLD);
 		top.setAlignmentX(Component.CENTER_ALIGNMENT);
 
 		JLabel bottom = new JLabel(caption, SwingConstants.CENTER);
-		bottom.setFont(FontManager.getRunescapeSmallFont());
+		bottom.setFont(FontManager.getRunescapeFont());
 		bottom.setForeground(Color.GRAY);
 		bottom.setAlignmentX(Component.CENTER_ALIGNMENT);
 
@@ -650,21 +651,31 @@ class VeritasEventsPanel extends PluginPanel
 	/** A name on the left and a figure on the right, picked out if it is yours. */
 	private static JPanel row(String left, String right, boolean mine)
 	{
+		return cells(left, right, mine ? GOLD : Color.WHITE, Color.LIGHT_GRAY);
+	}
+
+	/** One full width line: something on the left, something on the right. */
+	private static JPanel cells(String left, String right, Color leftColour, Color rightColour)
+	{
 		JPanel panel = new JPanel(new BorderLayout());
 		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		panel.setBorder(BorderFactory.createEmptyBorder(3, 6, 3, 6));
 		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		JLabel name = new JLabel(left);
-		name.setFont(FontManager.getRunescapeSmallFont());
-		name.setForeground(mine ? GOLD : Color.WHITE);
-
-		JLabel figure = new JLabel(right);
-		figure.setFont(FontManager.getRunescapeSmallFont());
-		figure.setForeground(Color.GRAY);
-
+		name.setFont(FontManager.getRunescapeFont());
+		name.setForeground(leftColour);
 		panel.add(name, BorderLayout.WEST);
-		panel.add(figure, BorderLayout.EAST);
+
+		if (!right.isEmpty())
+		{
+			JLabel figure = new JLabel(right);
+			figure.setFont(FontManager.getRunescapeFont());
+			figure.setForeground(rightColour);
+			panel.add(figure, BorderLayout.EAST);
+		}
+
+		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
 		return panel;
 	}
 
@@ -681,7 +692,7 @@ class VeritasEventsPanel extends PluginPanel
 	private static JLabel line(String text, Color colour)
 	{
 		JLabel label = new JLabel(text);
-		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setFont(FontManager.getRunescapeFont());
 		label.setForeground(colour);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
 		return label;
@@ -690,7 +701,7 @@ class VeritasEventsPanel extends PluginPanel
 	/** Wrapped grey text, for the empty states. */
 	private static JLabel hint(String text)
 	{
-		JLabel label = line("<html><body style='width:190px'>" + text + "</body></html>", Color.GRAY);
+		JLabel label = line("<html><body style='width:200px'>" + text + "</body></html>", Color.GRAY);
 		label.setBorder(BorderFactory.createEmptyBorder(4, 0, 4, 0));
 		return label;
 	}
