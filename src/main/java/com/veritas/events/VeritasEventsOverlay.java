@@ -11,6 +11,10 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import javax.inject.Inject;
+import net.runelite.api.MenuAction;
+import net.runelite.client.ui.overlay.OverlayLayer;
+import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LineComponent;
@@ -34,6 +38,11 @@ class VeritasEventsOverlay extends OverlayPanel
 		this.plugin = plugin;
 		this.config = config;
 		setPosition(OverlayPosition.TOP_LEFT);
+		setLayer(OverlayLayer.ABOVE_WIDGETS);
+		// Alt and drag moves it; this puts it in the overlay menu so it can be
+		// put back again without hunting for where it went.
+		getMenuEntries().add(new OverlayMenuEntry(
+			MenuAction.RUNELITE_OVERLAY_CONFIG, OverlayManager.OPTION_CONFIGURE, "Veritas Events overlay"));
 	}
 
 	@Override

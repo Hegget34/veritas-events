@@ -122,6 +122,9 @@ Type it into **Event password** under Overlay, or let the board set it for
 everyone by returning `password` in its answer, and nobody has to be told it
 at all.
 
+It starts in the top left. Hold **Alt** and drag it wherever you want it; right
+click it for the usual overlay menu.
+
 ## Screenshots
 
 Sent as a JPEG at the client's own resolution, so a drop can still be checked
