@@ -33,7 +33,7 @@ public interface VeritasEventsConfig extends Config
 			+ "Veritas is filled in already; another clan can point this at their own.")
 	default String clanUrl()
 	{
-		return "https://veritas-clan-board.veritascc.workers.dev";
+		return "https://board.veritasclan.cc";
 	}
 
 	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 1, section = eventSection,
