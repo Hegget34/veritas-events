@@ -28,21 +28,28 @@ public interface VeritasEventsConfig extends Config
 	@ConfigSection(name = "Overlay", description = "Stamp the game window while you play", position = 2)
 	String overlaySection = "overlay";
 
-	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 0, section = eventSection,
-		description = "The address your event organiser gave you. Leave blank to turn the plugin off.")
+	@ConfigItem(keyName = "clanUrl", name = "Clan board", position = 0, section = eventSection,
+		description = "The clan's own address. Its pages are always there, event or no event.")
+	default String clanUrl()
+	{
+		return "";
+	}
+
+	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 1, section = eventSection,
+		description = "The address of whichever event is running. Leave it blank when none is.")
 	default String eventUrl()
 	{
 		return "";
 	}
 
-	@ConfigItem(keyName = "eventKey", name = "Event key", position = 1, section = eventSection, secret = true,
+	@ConfigItem(keyName = "eventKey", name = "Event key", position = 2, section = eventSection, secret = true,
 		description = "The key that lets you post to this board. Keep it to yourself.")
 	default String eventKey()
 	{
 		return "";
 	}
 
-	@ConfigItem(keyName = "refreshMinutes", name = "Refresh every", position = 3, section = eventSection,
+	@ConfigItem(keyName = "refreshMinutes", name = "Refresh every", position = 4, section = eventSection,
 		description = "How often to ask the board for the latest standings, in minutes.")
 	@Range(min = 1, max = 60)
 	@Units(Units.MINUTES)
@@ -51,14 +58,14 @@ public interface VeritasEventsConfig extends Config
 		return 5;
 	}
 
-	@ConfigItem(keyName = "womGroupId", name = "Wise Old Man group", position = 4, section = eventSection,
+	@ConfigItem(keyName = "womGroupId", name = "Wise Old Man group", position = 5, section = eventSection,
 		description = "The group id the Gained view reads from. Veritas is 13727. Set it to 0 to turn that view off.")
 	default int womGroupId()
 	{
 		return 13727;
 	}
 
-	@ConfigItem(keyName = "sendScreenshot", name = "Include a screenshot", position = 2, section = eventSection,
+	@ConfigItem(keyName = "sendScreenshot", name = "Include a screenshot", position = 3, section = eventSection,
 		description = "Attach a picture of your screen, so staff can see it without you uploading one.")
 	default boolean sendScreenshot()
 	{

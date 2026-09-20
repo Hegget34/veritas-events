@@ -35,12 +35,22 @@ Chests, raids and pickpocketing are the exception. Those are worked out by the
 Loot Tracker plugin rather than sent by the game, so leave it on if your event
 counts that sort of loot. The panel says so when it is off.
 
+## Two addresses
+
+**Clan board** is the clan's own, and its pages are there whether or not an
+event is running. **Event URL** belongs to whoever is hosting an event and is
+blank the rest of the time. Both answer the same JSON, and both contribute
+pages to the view chooser - the clan's first.
+
+Keeping them apart means the clan's own pages outlive any one event, and a
+guest hosting an event cannot change them.
+
 ## Setup
 
 1. Install **Veritas** from the RuneLite Plugin Hub
 2. Open its settings (the cog next to the plugin name)
-3. Paste the **Event URL** your organiser gave you
-4. Paste the **Event key** for that event
+3. Paste the **Clan board** address, if your clan runs one
+4. Paste the **Event URL** and **Event key** when an event is running
 5. Choose what to send, and whether to include screenshots
 
 That's it. Play normally and your drops turn up on the board.
@@ -57,7 +67,8 @@ The sidebar panel is picked from a dropdown:
 
 - **Home** - the clan, and the places it keeps its business: Discord, the clan
   website, DropTracker, TempleOSRS and Wise Old Man. Built in, so it reads
-  properly before any board answers, and a board can add to it with `home`
+  properly before any board answers, and the clan board can add to it with
+  `home`
 - **Event** - the event name, whether it is live, how long is left, your team,
   a bar showing how many tiles your team has done, then the standings and who
   has sent the most drops, with your team and your own name picked out

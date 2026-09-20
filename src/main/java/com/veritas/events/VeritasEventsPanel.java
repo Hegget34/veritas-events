@@ -144,6 +144,7 @@ class VeritasEventsPanel extends PluginPanel
 	private String problem = "";
 	private final JPanel display = new JPanel(new BorderLayout());
 	private JsonObject lastDetails;
+	private JsonObject lastClan;
 	private boolean fillingPages;
 
 	private final JButton resend = new JButton("Send again");
@@ -219,7 +220,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		drawViews(null);
+		drawViews();
 		style(viewSelect);
 		viewSelect.addActionListener(e ->
 		{
@@ -385,7 +386,7 @@ class VeritasEventsPanel extends PluginPanel
 	 * The links are built in so this reads properly before any board answers,
 	 * and the board can add to it underneath.
 	 */
-	private void drawHome(@Nullable JsonObject details)
+	private void drawHome()
 	{
 		homeTab.removeAll();
 
@@ -399,7 +400,7 @@ class VeritasEventsPanel extends PluginPanel
 		homeTab.add(caption("Tracking"));
 		links(homeTab, TRACKING);
 
-		blocks(homeTab, array(details, "home"));
+		blocks(homeTab, array(lastClan != null ? lastClan : lastDetails, "home"));
 
 		homeTab.revalidate();
 		homeTab.repaint();
@@ -597,15 +598,26 @@ class VeritasEventsPanel extends PluginPanel
 	 * Fills the views from whatever the board reported. Every field
 	 * is optional, so a board that answers with nothing still leaves a usable panel.
 	 */
+	/** The clan's own pages, which stay whether or not an event is running. */
+	void setClan(@Nullable JsonObject clan)
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			lastClan = clan;
+			drawHome();
+			drawViews();
+		});
+	}
+
 	void setEvent(@Nullable JsonObject details, @Nullable String problem)
 	{
 		SwingUtilities.invokeLater(() ->
 		{
 			this.problem = problem == null ? "" : problem;
 			lastDetails = details;
-			drawHome(details);
+			drawHome();
 			drawEvent(details);
-			drawViews(details);
+			drawViews();
 			drawActivity();
 		});
 	}
@@ -617,10 +629,28 @@ class VeritasEventsPanel extends PluginPanel
 		String name = text(details, "event");
 		if (name.isEmpty())
 		{
-			eventTab.add(hint(!problem.isEmpty() ? problem
-				: config.eventUrl().trim().isEmpty()
-					? "Paste the event URL your organiser gave you into the settings."
-					: "Connected, but this board is not reporting event details yet."));
+			if (!problem.isEmpty())
+			{
+				eventTab.add(hint(problem));
+			}
+			else if (config.eventUrl().trim().isEmpty())
+			{
+				eventTab.add(title("No event running"));
+				eventTab.add(hint("When one starts, the host gives out an address and a key. "
+					+ "Put them in this plugin's settings, under Event."));
+				eventTab.add(Box.createVerticalStrut(8));
+				eventTab.add(hint("Hosting one yourself? See HOSTING.md in the plugin's repository."));
+				JButton repo = link("Open the repository",
+					"https://github.com/Hegget34/veritas-events");
+				if (repo != null)
+				{
+					eventTab.add(repo);
+				}
+			}
+			else
+			{
+				eventTab.add(hint("Connected, but this board is not reporting an event yet."));
+			}
 		}
 		else
 		{
@@ -772,10 +802,9 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** Lists the fixed views, then a view per page the board publishes. */
-	private void drawViews(@Nullable JsonObject details)
+	private void drawViews()
 	{
 		String open = (String) viewSelect.getSelectedItem();
-		JsonArray pages = array(details, "pages");
 
 		fillingPages = true;
 		viewSelect.removeAllItems();
@@ -783,12 +812,9 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			viewSelect.addItem(view);
 		}
-		if (pages != null)
+		for (JsonObject page : pages())
 		{
-			for (JsonElement element : pages)
-			{
-				viewSelect.addItem(text(element.getAsJsonObject(), "name"));
-			}
+			viewSelect.addItem(text(page, "name"));
 		}
 		if (open != null)
 		{
@@ -869,12 +895,33 @@ class VeritasEventsPanel extends PluginPanel
 		pageContent.repaint();
 	}
 
+	/**
+	 * Every published page: the clan's own first, then whatever the running
+	 * event adds. Clan pages are there with no event set, which is the point of
+	 * keeping the two addresses apart.
+	 */
+	private List<JsonObject> pages()
+	{
+		List<JsonObject> all = new ArrayList<>();
+		for (JsonObject board : new JsonObject[]{lastClan, lastDetails})
+		{
+			JsonArray published = array(board, "pages");
+			if (published != null)
+			{
+				for (JsonElement element : published)
+				{
+					all.add(element.getAsJsonObject());
+				}
+			}
+		}
+		return all;
+	}
+
 	@Nullable
 	private JsonObject pageAt(int index)
 	{
-		JsonArray pages = array(lastDetails, "pages");
-		return pages == null || index < 0 || index >= pages.size()
-			? null : pages.get(index).getAsJsonObject();
+		List<JsonObject> all = pages();
+		return index < 0 || index >= all.size() ? null : all.get(index);
 	}
 
 	/**

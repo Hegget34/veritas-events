@@ -151,7 +151,7 @@ public class VeritasEventsPlugin extends Plugin
 			.build();
 		clientToolbar.addNavigation(navButton);
 		overlayManager.add(overlay);
-		refreshEvent();
+		refresh();
 		reschedule();
 	}
 
@@ -185,7 +185,7 @@ public class VeritasEventsPlugin extends Plugin
 		if (VeritasEventsConfig.GROUP.equals(event.getGroup()) && panel != null)
 		{
 			panel.refresh();
-			refreshEvent();
+			refresh();
 			reschedule();
 		}
 	}
@@ -389,6 +389,56 @@ public class VeritasEventsPlugin extends Plugin
 		return boardPassword.isEmpty() ? "Veritas" : boardPassword;
 	}
 
+	/** Both boards: the clan's own, and whichever event is running. */
+	private void refresh()
+	{
+		refreshClan();
+		refreshEvent();
+	}
+
+	/**
+	 * The clan's own pages. Nothing here belongs to an event, so it is asked for
+	 * whether or not one is running and outlives any that is.
+	 */
+	private void refreshClan()
+	{
+		VeritasEventsPanel p = panel;
+		String url = config.clanUrl().trim();
+		if (p == null)
+		{
+			return;
+		}
+		if (url.isEmpty())
+		{
+			p.setClan(null);
+			return;
+		}
+
+		okHttpClient.newCall(new Request.Builder().url(url).build()).enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call call, IOException e)
+			{
+				log.debug("no clan pages", e);
+				p.setClan(null);
+			}
+
+			@Override
+			public void onResponse(Call call, Response response)
+			{
+				try (ResponseBody body = response.body())
+				{
+					p.setClan(gson.fromJson(body.string(), JsonObject.class));
+				}
+				catch (Exception e)
+				{
+					log.debug("could not read the clan pages", e);
+					p.setClan(null);
+				}
+			}
+		});
+	}
+
 	/** Asks the board for the standings again every few minutes. */
 	private void reschedule()
 	{
@@ -397,7 +447,7 @@ public class VeritasEventsPlugin extends Plugin
 			refresher.cancel(false);
 		}
 		int minutes = Math.max(1, config.refreshMinutes());
-		refresher = executor.scheduleWithFixedDelay(this::refreshEvent, minutes, minutes, TimeUnit.MINUTES);
+		refresher = executor.scheduleWithFixedDelay(this::refresh, minutes, minutes, TimeUnit.MINUTES);
 	}
 
 	/**
