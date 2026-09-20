@@ -55,9 +55,11 @@ The sidebar panel is picked from a dropdown:
 Any pages the board publishes are added to the same chooser under those four,
 so every page is one click rather than two.
 
-- **Loot Tracker** - how much you have sent this session, everything that went
-  out with whether the board accepted it, and a **Send again** button for when
-  the board was down at the time
+- **Loot Tracker** - how much you have sent this session and everything that
+  went out, grouped by what dropped it or listed kill by kill, collapsed or
+  not, with a **Send again** button for when the board was down at the time.
+  While an event is asking for particular items, a chooser appears at the top
+  to show those instead
 
 All of it comes from the board, so an event that reports nothing still leaves a
 panel that works - it just shows less.

@@ -17,7 +17,9 @@ import java.awt.GridLayout;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
@@ -117,6 +119,11 @@ class VeritasEventsPanel extends PluginPanel
 	private boolean fillingPages;
 
 	private final JButton resend = new JButton("Send again");
+	private final JComboBox<String> lootSelect = new JComboBox<>();
+	private final JButton groupButton = new JButton();
+	private final JButton collapseButton = new JButton();
+	private boolean grouped = true;
+	private boolean collapsed;
 	private final Runnable onRefresh;
 
 	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager,
@@ -136,6 +143,30 @@ class VeritasEventsPanel extends PluginPanel
 		resend.setEnabled(false);
 		resend.setToolTipText("Send the last thing again, if the board missed it");
 		resend.addActionListener(e -> onResend.run());
+
+		style(lootSelect);
+		lootSelect.addActionListener(e ->
+		{
+			if (!fillingPages)
+			{
+				drawActivity();
+			}
+		});
+		for (JButton button : new JButton[]{groupButton, collapseButton})
+		{
+			button.setFont(FontManager.getRunescapeFont());
+			button.setAlignmentX(Component.LEFT_ALIGNMENT);
+		}
+		groupButton.addActionListener(e ->
+		{
+			grouped = !grouped;
+			drawActivity();
+		});
+		collapseButton.addActionListener(e ->
+		{
+			collapsed = !collapsed;
+			drawActivity();
+		});
 
 		JPanel top = new JPanel();
 		top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
@@ -452,6 +483,7 @@ class VeritasEventsPanel extends PluginPanel
 			drawHome(details);
 			drawEvent(details);
 			drawViews(details);
+			drawActivity();
 		});
 	}
 
@@ -803,6 +835,83 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		activityTab.removeAll();
 
+		JsonArray wanted = array(lastDetails, "wanted");
+		String open = (String) lootSelect.getSelectedItem();
+		fillingPages = true;
+		lootSelect.removeAllItems();
+		lootSelect.addItem("Your loot");
+		if (wanted != null)
+		{
+			lootSelect.addItem("Items to go for");
+		}
+		if (open != null)
+		{
+			lootSelect.setSelectedItem(open);
+		}
+		fillingPages = false;
+
+		// The chooser is only worth the room when there is an event asking for something.
+		if (wanted != null)
+		{
+			activityTab.add(caption("Show"));
+			activityTab.add(lootSelect);
+			activityTab.add(Box.createVerticalStrut(12));
+		}
+
+		if (wanted != null && lootSelect.getSelectedIndex() == 1)
+		{
+			drawWanted(wanted);
+		}
+		else
+		{
+			drawLoot();
+		}
+
+		activityTab.revalidate();
+		activityTab.repaint();
+	}
+
+	/** What this event is asking for, so you know what is worth going after. */
+	private void drawWanted(JsonArray wanted)
+	{
+		activityTab.add(title(orElse(text(lastDetails, "wantedLabel"), "Still to find")));
+
+		for (JsonElement element : wanted)
+		{
+			JsonObject item = element.getAsJsonObject();
+			boolean found = has(item, "found") && item.get("found").getAsBoolean();
+
+			JPanel line = new JPanel(new BorderLayout(6, 0));
+			line.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+			line.setBorder(BorderFactory.createEmptyBorder(3, 6, 3, 6));
+			line.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+			if (has(item, "id"))
+			{
+				JLabel icon = new JLabel();
+				icon.setPreferredSize(new Dimension(36, 32));
+				itemManager.getImage((int) number(item, "id")).addTo(icon);
+				line.add(icon, BorderLayout.WEST);
+			}
+
+			JLabel name = new JLabel(text(item, "name"));
+			name.setFont(FontManager.getRunescapeFont());
+			name.setForeground(found ? Color.GRAY : Color.WHITE);
+			line.add(name, BorderLayout.CENTER);
+
+			JLabel note = new JLabel(found ? "found" : text(item, "note"));
+			note.setFont(FontManager.getRunescapeFont());
+			note.setForeground(found ? ColorScheme.PROGRESS_COMPLETE_COLOR : GOLD);
+			line.add(note, BorderLayout.EAST);
+
+			line.setMaximumSize(new Dimension(Integer.MAX_VALUE, line.getPreferredSize().height));
+			activityTab.add(line);
+			activityTab.add(Box.createVerticalStrut(2));
+		}
+	}
+
+	private void drawLoot()
+	{
 		JPanel counts = new JPanel(new GridLayout(1, 3, 4, 0));
 		counts.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		counts.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -810,30 +919,55 @@ class VeritasEventsPanel extends PluginPanel
 		counts.add(stat("Failed", String.valueOf(failures)));
 		counts.add(stat("Loot", QuantityFormatter.quantityToStackSize(sessionLoot)));
 		activityTab.add(counts);
-
-		activityTab.add(Box.createVerticalStrut(6));
-		resend.setAlignmentX(Component.LEFT_ALIGNMENT);
-		activityTab.add(resend);
 		activityTab.add(Box.createVerticalStrut(8));
 
+		groupButton.setText(grouped ? "Each kill separately" : "Group by source");
+		collapseButton.setText(collapsed ? "Expand all" : "Collapse all");
+		activityTab.add(groupButton);
+		activityTab.add(Box.createVerticalStrut(2));
+		activityTab.add(collapseButton);
+		activityTab.add(Box.createVerticalStrut(2));
+		activityTab.add(resend);
+		activityTab.add(Box.createVerticalStrut(10));
+
+		List<Sent> entries = entries();
+		if (entries.isEmpty())
+		{
+			activityTab.add(hint("Nothing sent yet."));
+			return;
+		}
+		for (Sent entry : entries)
+		{
+			activityTab.add(box(entry));
+			activityTab.add(Box.createVerticalStrut(4));
+		}
+	}
+
+	/** Every send, or one line per source with the kills added up. */
+	private List<Sent> entries()
+	{
 		synchronized (sent)
 		{
-			if (sent.isEmpty())
+			if (!grouped)
 			{
-				activityTab.add(hint("Nothing sent yet."));
+				return new ArrayList<>(sent);
 			}
-			else
+
+			Map<String, Sent> bySource = new LinkedHashMap<>();
+			for (Sent one : sent)
 			{
-				for (Sent entry : sent)
+				Sent already = bySource.get(one.source);
+				if (already == null)
 				{
-					activityTab.add(box(entry));
-					activityTab.add(Box.createVerticalStrut(4));
+					bySource.put(one.source, one.copy());
+				}
+				else
+				{
+					already.merge(one);
 				}
 			}
+			return new ArrayList<>(bySource.values());
 		}
-
-		activityTab.revalidate();
-		activityTab.repaint();
 	}
 
 	/** One sent drop: source and value on top, item icons underneath. */
@@ -847,7 +981,7 @@ class VeritasEventsPanel extends PluginPanel
 		JPanel top = new JPanel(new BorderLayout());
 		top.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 
-		JLabel source = new JLabel(entry.source);
+		JLabel source = new JLabel(entry.count > 1 ? entry.source + " x " + entry.count : entry.source);
 		source.setFont(FontManager.getRunescapeFont());
 		source.setForeground(entry.ok ? Color.WHITE : ColorScheme.PROGRESS_ERROR_COLOR);
 		top.add(source, BorderLayout.WEST);
@@ -861,7 +995,7 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		box.add(top, BorderLayout.NORTH);
 
-		if (!entry.items.isEmpty())
+		if (!entry.items.isEmpty() && !collapsed)
 		{
 			JPanel icons = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 2));
 			icons.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -1040,8 +1174,9 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		private final String source;
 		private final List<int[]> items;
-		private final long value;
 		private final boolean ok;
+		private long value;
+		private int count;
 
 		Sent(String source, List<int[]> items, long value, boolean ok)
 		{
@@ -1049,6 +1184,41 @@ class VeritasEventsPanel extends PluginPanel
 			this.items = items;
 			this.value = value;
 			this.ok = ok;
+			this.count = 1;
+		}
+
+		/** A copy that can be merged into without touching what was recorded. */
+		Sent copy()
+		{
+			List<int[]> copied = new ArrayList<>();
+			for (int[] item : items)
+			{
+				copied.add(new int[]{item[0], item[1]});
+			}
+			return new Sent(source, copied, value, ok);
+		}
+
+		void merge(Sent other)
+		{
+			count += other.count;
+			value += other.value;
+			for (int[] add : other.items)
+			{
+				boolean known = false;
+				for (int[] have : items)
+				{
+					if (have[0] == add[0])
+					{
+						have[1] += add[1];
+						known = true;
+						break;
+					}
+				}
+				if (!known)
+				{
+					items.add(new int[]{add[0], add[1]});
+				}
+			}
 		}
 	}
 }
