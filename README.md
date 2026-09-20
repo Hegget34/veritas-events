@@ -50,10 +50,9 @@ The sidebar panel is picked from a dropdown:
 - **Event** - the event name, whether it is live, how long is left, your team,
   a bar showing how many tiles your team has done, then the standings and who
   has sent the most drops, with your team and your own name picked out
-- **Clan** - whatever pages the board publishes, picked from a dropdown
-- **Gained** - what the clan has put on, from Wise Old Man. Pick any skill,
-  boss, Overall XP or efficient hours bossed, over today, the week, the month
-  or the year
+- **Clan** - a page chooser. **Stats** is built in: what the clan has gained
+  from Wise Old Man, with a chooser each for skills and bosses and one for the
+  period. The rest are whatever pages the board publishes
 - **Loot Tracker** - how much you have sent this session, everything that went
   out with whether the board accepted it, and a **Send again** button for when
   the board was down at the time
@@ -149,7 +148,7 @@ instead of one per member, and nobody has to paste an API key into a setting.
 
 ## Wise Old Man
 
-The Gained view reads Wise Old Man's public API directly. It is read only and
+The Stats page under Clan reads Wise Old Man's public API directly. It is read only and
 needs no key, so nothing is configured beyond the group id, which defaults to
 Veritas (13727) and can be set to 0 to turn the view off.
 

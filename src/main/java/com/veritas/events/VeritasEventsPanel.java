@@ -46,6 +46,7 @@ class VeritasEventsPanel extends PluginPanel
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
 	private static final int BAR_HEIGHT = 16;
 	private static final int BUTTON_HEIGHT = 26;
+	private static final String STATS = "Stats";
 
 	private static final String[] SKILLS = {
 		"overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic",
@@ -97,11 +98,13 @@ class VeritasEventsPanel extends PluginPanel
 	private final JLabel status = new JLabel();
 
 	private final JPanel homeTab = column();
-	private final JPanel gainedTab = column();
+	private final JPanel statsTab = column();
 	private final JPanel gainedContent = column();
-	private final JComboBox<String> metricSelect = new JComboBox<>();
+	private final JComboBox<String> skillSelect = new JComboBox<>();
+	private final JComboBox<String> bossSelect = new JComboBox<>();
 	private final JComboBox<String> periodSelect = new JComboBox<>();
-	private final List<String> metricKeys = new ArrayList<>();
+	private String metric = SKILLS[0];
+	private boolean statsAsked;
 	private final BiConsumer<String, String> onGained;
 	private final JPanel eventTab = column();
 	private final JPanel clanTab = column();
@@ -147,7 +150,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		for (String view : new String[]{"Home", "Event", "Clan", "Gained", "Loot Tracker"})
+		for (String view : new String[]{"Home", "Event", "Clan", "Loot Tracker"})
 		{
 			viewSelect.addItem(view);
 		}
@@ -174,24 +177,22 @@ class VeritasEventsPanel extends PluginPanel
 		clanTab.add(Box.createVerticalStrut(10));
 		clanTab.add(pageContent);
 
-		buildGained();
+		buildStats();
 		setEvent(null, null);
 		drawActivity();
 		refresh();
 	}
 
 	/** XP and kills the clan has put on, straight from Wise Old Man. */
-	private void buildGained()
+	private void buildStats()
 	{
 		for (String skill : SKILLS)
 		{
-			metricKeys.add(skill);
-			metricSelect.addItem(label(skill));
+			skillSelect.addItem(label(skill));
 		}
 		for (String boss : BOSSES)
 		{
-			metricKeys.add(boss);
-			metricSelect.addItem(label(boss));
+			bossSelect.addItem(label(boss));
 		}
 		for (String[] period : PERIODS)
 		{
@@ -199,37 +200,38 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		periodSelect.setSelectedIndex(1);
 
-		style(metricSelect);
+		style(skillSelect);
+		style(bossSelect);
 		style(periodSelect);
-		metricSelect.addActionListener(e -> askGained());
-		periodSelect.addActionListener(e -> askGained());
+		// Whichever chooser was touched last is the one being asked about.
+		skillSelect.addActionListener(e -> askGained(SKILLS[Math.max(0, skillSelect.getSelectedIndex())]));
+		bossSelect.addActionListener(e -> askGained(BOSSES[Math.max(0, bossSelect.getSelectedIndex())]));
+		periodSelect.addActionListener(e -> askGained(metric));
 
-		gainedTab.add(caption("Metric"));
-		gainedTab.add(metricSelect);
-		gainedTab.add(Box.createVerticalStrut(10));
-		gainedTab.add(caption("Period"));
-		gainedTab.add(periodSelect);
-		gainedTab.add(Box.createVerticalStrut(12));
-		gainedTab.add(gainedContent);
-
-		gainedContent.add(hint("Pick a skill or a boss to see who has gained the most."));
+		statsTab.add(caption("Skill"));
+		statsTab.add(skillSelect);
+		statsTab.add(Box.createVerticalStrut(10));
+		statsTab.add(caption("Boss"));
+		statsTab.add(bossSelect);
+		statsTab.add(Box.createVerticalStrut(10));
+		statsTab.add(caption("Period"));
+		statsTab.add(periodSelect);
+		statsTab.add(Box.createVerticalStrut(12));
+		statsTab.add(gainedContent);
 	}
 
-	private void askGained()
+	private void askGained(String key)
 	{
-		int metric = metricSelect.getSelectedIndex();
-		int period = periodSelect.getSelectedIndex();
-		if (metric < 0 || metric >= metricKeys.size() || period < 0)
-		{
-			return;
-		}
+		metric = key;
+		statsAsked = true;
 
 		gainedContent.removeAll();
 		gainedContent.add(hint("Asking Wise Old Man..."));
 		gainedContent.revalidate();
 		gainedContent.repaint();
 
-		onGained.accept(metricKeys.get(metric), PERIODS[period][1]);
+		int period = Math.max(0, periodSelect.getSelectedIndex());
+		onGained.accept(key, PERIODS[period][1]);
 	}
 
 	/** The leaderboard Wise Old Man sent back. */
@@ -335,8 +337,7 @@ class VeritasEventsPanel extends PluginPanel
 		int chosen = viewSelect.getSelectedIndex();
 		JPanel view = chosen == 1 ? eventTab
 			: chosen == 2 ? clanTab
-			: chosen == 3 ? gainedTab
-			: chosen == 4 ? activityTab
+			: chosen == 3 ? activityTab
 			: homeTab;
 
 		display.removeAll();
@@ -612,7 +613,7 @@ class VeritasEventsPanel extends PluginPanel
 		}
 	}
 
-	/** Fills the page chooser from the board, keeping whatever page was open. */
+	/** Fills the page chooser: Stats, then whatever the board publishes. */
 	private void drawPages(@Nullable JsonObject details)
 	{
 		String open = (String) pageSelect.getSelectedItem();
@@ -620,22 +621,20 @@ class VeritasEventsPanel extends PluginPanel
 
 		fillingPages = true;
 		pageSelect.removeAllItems();
+		pageSelect.addItem(STATS);
 		if (pages != null)
 		{
 			for (JsonElement element : pages)
 			{
 				pageSelect.addItem(text(element.getAsJsonObject(), "name"));
 			}
-			if (open != null)
-			{
-				pageSelect.setSelectedItem(open);
-			}
+		}
+		if (open != null)
+		{
+			pageSelect.setSelectedItem(open);
 		}
 		fillingPages = false;
 
-		boolean any = pageSelect.getItemCount() > 0;
-		pageSelect.setVisible(any);
-		pageCaption.setVisible(any);
 		drawPage();
 	}
 
@@ -644,16 +643,27 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		pageContent.removeAll();
 
-		JsonArray pages = array(lastDetails, "pages");
-		int index = pageSelect.getSelectedIndex();
-		if (pages == null || index < 0 || index >= pages.size())
+		if (pageSelect.getSelectedIndex() <= 0)
 		{
-			pageContent.add(hint(!problem.isEmpty() ? problem
-				: "Clan pages show here once the board reports them."));
+			pageContent.add(statsTab);
+			if (!statsAsked)
+			{
+				askGained(metric);
+			}
 		}
 		else
 		{
-			blocks(pageContent, array(pages.get(index).getAsJsonObject(), "blocks"));
+			JsonArray pages = array(lastDetails, "pages");
+			int index = pageSelect.getSelectedIndex() - 1;
+			if (pages == null || index >= pages.size())
+			{
+				pageContent.add(hint(!problem.isEmpty() ? problem
+					: "Clan pages show here once the board reports them."));
+			}
+			else
+			{
+				blocks(pageContent, array(pages.get(index).getAsJsonObject(), "blocks"));
+			}
 		}
 
 		pageContent.revalidate();
