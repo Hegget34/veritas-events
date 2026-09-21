@@ -10,6 +10,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.inject.Provides;
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
@@ -40,6 +41,10 @@ import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.client.Notifier;
+import net.runelite.client.chat.ChatMessageBuilder;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -77,6 +82,12 @@ import okhttp3.ResponseBody;
 public class VeritasEventsPlugin extends Plugin
 {
 	private static final String WISE_OLD_MAN = "https://api.wiseoldman.net/v2/groups/";
+
+	/** The teal off the clan's own logo, for the lines it writes in chat. */
+	private static final Color VERITAS = new Color(0x5F, 0xA8, 0xD3);
+
+	/** For the lines that mean something did not work. */
+	private static final Color TROUBLE = new Color(0xD3, 0x5F, 0x5F);
 	private static final MediaType JSON = MediaType.get("application/json");
 	private static final MediaType JPEG = MediaType.get("image/jpeg");
 	private static final int MAX_WIDTH = 1920;
@@ -118,11 +129,27 @@ public class VeritasEventsPlugin extends Plugin
 	@Inject
 	private ScheduledExecutorService executor;
 
+	@Inject
+	private ChatMessageManager chatMessageManager;
+
+	@Inject
+	private Notifier notifier;
+
 	private VeritasEventsPanel panel;
 	private NavigationButton navButton;
 	private Runnable lastSend;
 	private ScheduledFuture<?> refresher;
 	private String boardPassword = "";
+
+	/**
+	 * The event the board says is running, by name.
+	 *
+	 * Only so the plugin can say when one starts and when it ends. It is
+	 * deliberately the name and not the address: nothing here may learn a
+	 * host from a server's answer.
+	 */
+	private String liveEvent = "";
+	private boolean toldAboutEvent;
 
 	/**
 	 * The items the running event is after, lower cased. While the board
@@ -231,6 +258,7 @@ public class VeritasEventsPlugin extends Plugin
 		// RuneLite's Loot Tracker alone can see: chests, raids, pickpocketing.
 		if (event.getType() != LootRecordType.NPC && event.getType() != LootRecordType.PLAYER)
 		{
+			log.debug("other loot: {} as {}", event.getName(), event.getType());
 			loot(event.getName(), event.getItems());
 		}
 	}
@@ -430,6 +458,8 @@ public class VeritasEventsPlugin extends Plugin
 				{
 					JsonObject clan = gson.fromJson(body.string(), JsonObject.class);
 					p.setClan(clan);
+					noticeEvent(clan != null && clan.has("liveEventName")
+						? clan.get("liveEventName").getAsString().trim() : "");
 				}
 				catch (Exception e)
 				{
@@ -438,6 +468,56 @@ public class VeritasEventsPlugin extends Plugin
 				}
 			}
 		});
+	}
+
+	/**
+	 * Says when an event starts and when it finishes.
+	 *
+	 * The first answer after the client starts is not announced, otherwise
+	 * every login would report an event that has been running for days.
+	 */
+	private void noticeEvent(String running)
+	{
+		if (running.equals(liveEvent))
+		{
+			return;
+		}
+
+		String was = liveEvent;
+		liveEvent = running;
+
+		if (!toldAboutEvent)
+		{
+			toldAboutEvent = true;
+			return;
+		}
+		if (!config.announceEvents())
+		{
+			return;
+		}
+
+		if (!running.isEmpty())
+		{
+			notifier.notify(running + " has started.");
+			say(running + " is running now. Put the address in the settings to take part.", true);
+		}
+		else if (!was.isEmpty())
+		{
+			notifier.notify(was + " has finished.");
+			say(was + " has finished. You can clear the event address now.", true);
+		}
+	}
+
+	/** A line in the chat box, in the clan's own colours. */
+	private void say(String words, boolean good)
+	{
+		chatMessageManager.queue(QueuedMessage.builder()
+			.type(ChatMessageType.CONSOLE)
+			.runeLiteFormattedMessage(new ChatMessageBuilder()
+				.append(VERITAS, "[Veritas] ")
+				.append(good ? Color.WHITE : TROUBLE, words)
+				.build())
+			.build());
 	}
 
 	/**
@@ -658,12 +738,30 @@ public class VeritasEventsPlugin extends Plugin
 			public void onFailure(Call call, IOException e)
 			{
 				log.warn("could not reach the event board", e);
+				if (config.announceDrops())
+				{
+					say("could not reach the event board. Press Send again to retry.", false);
+				}
 				report(source, icons, value, VeritasEventsPanel.FAILED);
 			}
 
 			@Override
 			public void onResponse(Call call, Response response)
 			{
+				if (response.isSuccessful())
+				{
+					if (config.announceDrops())
+					{
+						say(source + " counted for the event.", true);
+					}
+				}
+				else
+				{
+					if (config.announceDrops())
+					{
+						say("the event board would not take that drop.", false);
+					}
+				}
 				report(source, icons, value,
 					response.isSuccessful() ? VeritasEventsPanel.SENT : VeritasEventsPanel.FAILED);
 				response.close();

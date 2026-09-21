@@ -103,6 +103,22 @@ public interface VeritasEventsConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(keyName = "announceDrops", name = "Say it in chat", position = 3, section = eventSection,
+		description = "Write a line in the chat box when a drop is sent to an "
+			+ "event, and when the board will not take one.")
+	default boolean announceDrops()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "announceEvents", name = "Tell me about events", position = 4, section = eventSection,
+		description = "Notify when the clan board says an event has started or "
+			+ "finished, so the start is not missed.")
+	default boolean announceEvents()
+	{
+		return true;
+	}
+
 	@ConfigItem(keyName = "showOverlay", name = "Display overlay", position = 0, section = overlaySection,
 		description = "Draw the event password and the time on top of the game.")
 	default boolean showOverlay()

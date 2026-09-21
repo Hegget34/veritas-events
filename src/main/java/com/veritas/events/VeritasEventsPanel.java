@@ -55,6 +55,9 @@ class VeritasEventsPanel extends PluginPanel
 {
 	/** Kept across restarts, so a long event is not lost by logging out. */
 	private static final int HISTORY = 500;
+
+	/** Items to a row in a loot box, the same as RuneLite's own tracker uses. */
+	private static final int ICON_COLUMNS = 5;
 	private static final String DROPS = "drops_";
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
@@ -1373,14 +1376,32 @@ class VeritasEventsPanel extends PluginPanel
 
 		if (!entry.items.isEmpty() && !collapsed)
 		{
-			JPanel icons = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 2));
+			/*
+			 * A grid, because a FlowLayout claims everything fits on one line
+			 * however many things it holds. The box was sized from that claim
+			 * and clipped the rest, so a kill with more than five distinct
+			 * drops appeared to have lost them.
+			 */
+			int rows = (entry.items.size() + ICON_COLUMNS - 1) / ICON_COLUMNS;
+			JPanel icons = new JPanel(new GridLayout(rows, ICON_COLUMNS, 2, 2));
 			icons.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+			icons.setBorder(BorderFactory.createEmptyBorder(3, 0, 1, 0));
+
 			for (int[] item : entry.items)
 			{
 				JLabel icon = new JLabel();
 				icon.setPreferredSize(new Dimension(36, 32));
+				icon.setVerticalAlignment(SwingConstants.CENTER);
+				icon.setToolTipText(itemManager.getItemComposition(item[0]).getName()
+					+ (item[1] > 1 ? " x " + item[1] : ""));
 				itemManager.getImage(item[0], item[1], item[1] > 1).addTo(icon);
 				icons.add(icon);
+			}
+
+			// the last row is padded so the grid does not stretch what is in it
+			for (int spare = rows * ICON_COLUMNS - entry.items.size(); spare > 0; spare--)
+			{
+				icons.add(new JLabel());
 			}
 			box.add(icons, BorderLayout.CENTER);
 		}
