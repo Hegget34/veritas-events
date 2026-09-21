@@ -127,6 +127,9 @@ public class VeritasEventsPlugin extends Plugin
 	/** The event address the clan board says is running, if any. */
 	private String boardEvent = "";
 
+	/** The key for it, when the host has published one there. */
+	private String boardKey = "";
+
 	/**
 	 * The items the running event is after, lower cased. While the board
 	 * publishes a list, only drops containing one of them are sent; everything
@@ -436,9 +439,13 @@ public class VeritasEventsPlugin extends Plugin
 
 					String running = clan != null && clan.has("liveEvent")
 						? clan.get("liveEvent").getAsString().trim() : "";
-					if (!running.equals(boardEvent))
+					String runningKey = clan != null && clan.has("liveEventKey")
+						? clan.get("liveEventKey").getAsString().trim() : "";
+
+					if (!running.equals(boardEvent) || !runningKey.equals(boardKey))
 					{
 						boardEvent = running;
+						boardKey = runningKey;
 						refreshEvent();
 					}
 				}
@@ -462,6 +469,16 @@ public class VeritasEventsPlugin extends Plugin
 	{
 		String typed = config.eventUrl().trim();
 		return typed.isEmpty() ? boardEvent : typed;
+	}
+
+	/**
+	 * The key that event's board wants, on the same terms as the address: what
+	 * is typed in the settings, otherwise whatever the clan board published.
+	 */
+	private String eventSecret()
+	{
+		String typed = config.eventKey().trim();
+		return typed.isEmpty() ? boardKey : typed;
 	}
 
 	/** Asks the board for the standings again every few minutes. */
@@ -610,7 +627,7 @@ public class VeritasEventsPlugin extends Plugin
 
 		Request request = new Request.Builder()
 			.url(url)
-			.header("X-Event-Key", config.eventKey().trim())
+			.header("X-Event-Key", eventSecret())
 			.build();
 
 		okHttpClient.newCall(request).enqueue(new Callback()
@@ -657,7 +674,7 @@ public class VeritasEventsPlugin extends Plugin
 
 		Request request = new Request.Builder()
 			.url(eventAddress())
-			.header("X-Event-Key", config.eventKey().trim())
+			.header("X-Event-Key", eventSecret())
 			.post(body)
 			.build();
 

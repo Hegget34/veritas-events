@@ -45,7 +45,8 @@ public interface VeritasEventsConfig extends Config
 	}
 
 	@ConfigItem(keyName = "eventKey", name = "Event key", position = 2, section = eventSection, secret = true,
-		description = "The key that lets you post to this board. Keep it to yourself.")
+		description = "The key that lets you post to the event's board. Left blank, the "
+			+ "clan board is asked for it, so usually there is nothing to fill in here.")
 	default String eventKey()
 	{
 		return "";

@@ -64,15 +64,53 @@ see it refused, and can press **Send again**.
 `type` is `LOOT` or `PET`. Pets carry the chat line as `message` rather than
 items, since a pet is not a dropped item.
 
-## 3. Hand out the address
+## 3. Put it on the clan board
 
-Players put two things in the plugin's **Event** settings:
+This is the step that means nobody has to be told anything. Ask a staff member
+to add your event at <https://board.veritasclan.cc/admin>, on the **Events**
+tab, one line:
 
-- **Event URL** - your address
-- **Event key** - anything you like
+```
+Veritas Roulette | 10/09/2026 @ 6 PM EST | 10/11/2026 @ 11 PM EST | YourName | https://your-event-address | key: whatever-you-chose
+```
 
-The key comes back to you on every post as an `X-Event-Key` header, so you can
-tell your players' drops from anyone else's. Check it and reject the rest.
+Only the name is required, and dates can be `2026-10-09` or `10/09/2026`.
+Labels like `Starts:` and `Hosted by:` are ignored, so write it how you like.
+
+From then on it runs itself:
+
+- **On the start date** every member's plugin notices the event on the clan
+  board and starts sending drops to your address, with screenshots.
+- **After the end date** it stops. No one has to remember to turn anything off.
+- The event also appears on the clan site's calendar and in everyone's plugin
+  under **Schedule**, so people know it is coming.
+
+The plugin checks the board every few minutes, so going live is not instant.
+It works in whole days, in UTC: an event dated the 9th is live for the whole
+of the 9th. If you need it to start at an exact hour, hold your own board
+closed until then and reject what arrives early.
+
+### About the key
+
+`key: ...` is optional and it is your choice.
+
+**Publish it**, as above, and members need no setup whatsoever. Bear in mind
+the clan board is public, so a published key is not a secret. It is a speed
+bump in front of a board that should be queueing submissions for approval
+anyway.
+
+**Leave it out** and hand the key round privately instead. Members then put it
+in the plugin's **Event key** setting themselves. The address still comes from
+the board, so that is the only thing they touch.
+
+Either way the key comes back on every post as an `X-Event-Key` header, so you
+can tell your players' drops from anyone else's. Check it and reject the rest.
+
+### Doing it without the clan board
+
+Members can always type your address into the plugin's **Event URL** setting
+and your key into **Event key**. Anything typed there wins over the board, so
+this still works for a one off, or for testing before you go live.
 
 ## Things worth knowing
 
@@ -91,7 +129,12 @@ shapes.
 
 **Testing.** `veritas-test-server.py`, kept with the clan tools, is a small
 stand-in board that serves a JSON file and prints drops as they arrive. Point
-the plugin at it before you point it at anything real.
+the plugin at it before you point it at anything real, by typing its address
+into **Event URL** rather than putting it on the clan board.
+
+**Check it went live.** <https://board.veritasclan.cc/> shows `liveEvent`. It
+is your address while your event is running and empty the rest of the time,
+which is exactly what every member's plugin is reading.
 
 ## The smallest thing that works
 
