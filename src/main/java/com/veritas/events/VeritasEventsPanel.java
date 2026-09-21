@@ -1414,18 +1414,32 @@ class VeritasEventsPanel extends PluginPanel
 		collapseButton.setIcon(chevron(collapsed));
 		collapseButton.setToolTipText(collapsed ? "Expand all" : "Collapse all");
 
-		JPanel tools = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+		// Send again belongs beside the two it works with, not on a row below
+		JPanel switches = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+		switches.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		switches.add(groupButton);
+		switches.add(collapseButton);
+
+		JPanel tools = new JPanel(new BorderLayout(5, 0));
 		tools.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		tools.setAlignmentX(Component.LEFT_ALIGNMENT);
-		tools.add(groupButton);
-		tools.add(collapseButton);
-		tools.setMaximumSize(new Dimension(Integer.MAX_VALUE, tools.getPreferredSize().height));
+		tools.add(switches, BorderLayout.WEST);
+		tools.add(resend, BorderLayout.CENTER);
+		tools.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
 		activityTab.add(tools);
-		activityTab.add(Box.createVerticalStrut(4));
-		activityTab.add(resend);
 		activityTab.add(Box.createVerticalStrut(10));
 
 		List<Sent> entries = entries();
+
+		// Nothing to show and asked for something to look at: made up drops,
+		// only while there are no real ones, and said so at the top.
+		if (entries.isEmpty() && config.showExamples())
+		{
+			activityTab.add(hint("Example drops, so you can see what this looks "
+				+ "like. Turn off Show example drops in the settings."));
+			entries = examples();
+		}
+
 		if (entries.isEmpty())
 		{
 			activityTab.add(hint(lootTrackerOff.getAsBoolean()
@@ -1439,6 +1453,45 @@ class VeritasEventsPanel extends PluginPanel
 			activityTab.add(box(entry));
 			activityTab.add(Box.createVerticalStrut(6));
 		}
+	}
+
+	/**
+	 * Made up drops, for showing the tracker to somebody.
+	 *
+	 * Four kills in the three states a drop can end in, so a demonstration
+	 * covers the colours down the side as well as the layout. Long standing
+	 * item ids, chosen so the icons resolve on any client.
+	 */
+	private static List<Sent> examples()
+	{
+		List<Sent> out = new ArrayList<>();
+		out.add(example("Vorkath", SENT, 1, new int[][]{
+			{11840, 1}, {995, 84000}, {565, 120}, {561, 90}, {385, 3}, {1149, 1},
+		}));
+		out.add(example("Alchemical hydra", SENT, 6, new int[][]{
+			{995, 240000}, {565, 340}, {385, 12}, {2577, 1},
+		}));
+		out.add(example("Reward casket (elite)", FAILED, 1, new int[][]{
+			{11802, 1}, {995, 15000},
+		}));
+		out.add(example("Zulrah", KEPT, 23, new int[][]{
+			{995, 1120000}, {561, 610}, {565, 480}, {4151, 1}, {11832, 1}, {385, 40},
+		}));
+		return out;
+	}
+
+	private static Sent example(String source, int state, int count, int[][] items)
+	{
+		List<int[]> stacks = new ArrayList<>();
+		long value = 0;
+		for (int[] item : items)
+		{
+			stacks.add(new int[]{item[0], item[1]});
+			value += (long) item[1] * 1200;
+		}
+		Sent one = new Sent(source, stacks, value, state);
+		one.count = count;
+		return one;
 	}
 
 	/** How many drops are on record. */

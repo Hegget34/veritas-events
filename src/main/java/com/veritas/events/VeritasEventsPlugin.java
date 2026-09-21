@@ -152,6 +152,7 @@ public class VeritasEventsPlugin extends Plugin
 	 */
 	private String liveEvent = "";
 	private boolean toldAboutEvent;
+	private boolean askedByHand;
 
 	/**
 	 * Kills of each monster this client has watched, since it started.
@@ -180,7 +181,7 @@ public class VeritasEventsPlugin extends Plugin
 	{
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
 		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon),
-			this::resend, this::refreshEvent, this::gained, this::lootTrackerOff,
+			this::resend, this::refreshByHand, this::gained, this::lootTrackerOff,
 			gson, configManager);
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas")
@@ -471,6 +472,20 @@ public class VeritasEventsPlugin extends Plugin
 	}
 
 	/**
+	 * The same, asked for by a person rather than by the timer.
+	 *
+	 * The board keeps its answer for a few minutes so that 326 plugins asking
+	 * every few minutes does not rebuild it 326 times. That is right for the
+	 * timer and wrong for a button, which should show what staff just saved,
+	 * so this one says it is asking by hand.
+	 */
+	private void refreshByHand()
+	{
+		askedByHand = true;
+		refresh();
+	}
+
+	/**
 	 * The clan's own pages. Nothing here belongs to an event, so it is asked for
 	 * whether or not one is running and outlives any that is.
 	 */
@@ -486,6 +501,12 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			p.setClan(null);
 			return;
+		}
+
+		if (askedByHand)
+		{
+			askedByHand = false;
+			url += (url.contains("?") ? "&" : "?") + "fresh=1";
 		}
 
 		okHttpClient.newCall(new Request.Builder().url(url).build()).enqueue(new Callback()

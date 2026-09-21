@@ -103,6 +103,15 @@ public interface VeritasEventsConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(keyName = "showExamples", name = "Show example drops", position = 6, section = eventSection,
+		description = "Fills the loot tracker with made up drops so you can see "
+			+ "what it looks like before you have any. They only appear while "
+			+ "the tracker is empty, and are labelled.")
+	default boolean showExamples()
+	{
+		return false;
+	}
+
 	@ConfigItem(keyName = "ignoreSources", name = "Ignore", position = 5, section = eventSection,
 		description = "Sources to keep out of the loot tracker, separated by commas. "
 			+ "Cleaning a tarnished item counts as loot in its own right to "
