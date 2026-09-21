@@ -37,16 +37,16 @@ public interface VeritasEventsConfig extends Config
 	}
 
 	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 1, section = eventSection,
-		description = "Where event drops go. Left blank, the clan board is asked "
-			+ "which event is running, so there is usually nothing to fill in here.")
+		description = "Where event drops go. The host of a bingo or a drop "
+			+ "competition gives you this address. Blank sends nothing.")
 	default String eventUrl()
 	{
 		return "";
 	}
 
 	@ConfigItem(keyName = "eventKey", name = "Event key", position = 2, section = eventSection, secret = true,
-		description = "The key that lets you post to the event's board. Left blank, the "
-			+ "clan board is asked for it, so usually there is nothing to fill in here.")
+		description = "The key that lets you post to the event's board, if the "
+			+ "host uses one. They will give it to you with the address.")
 	default String eventKey()
 	{
 		return "";

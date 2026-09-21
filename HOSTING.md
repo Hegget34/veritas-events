@@ -64,11 +64,19 @@ see it refused, and can press **Send again**.
 `type` is `LOOT` or `PET`. Pets carry the chat line as `message` rather than
 items, since a pet is not a dropped item.
 
-## 3. Put it on the clan board
+## 3. Tell the clan
 
-This is the step that means nobody has to be told anything. Ask a staff member
-to add your event at <https://board.veritasclan.cc/admin>, on the **Events**
-tab, one line:
+Two parts, and both are worth doing.
+
+**Hand out the address.** Members paste it into the plugin under
+**Veritas Events -> Event URL**, and your key, if you set one, into
+**Event key**. That is all the setup there is, and it is the only way drops
+reach you: the plugin never sends anywhere a player has not typed in itself.
+Post the address in Discord where people will see it, and say when to clear
+the field again.
+
+**Put the event on the clan board.** Ask a staff member to add it at
+<https://board.veritasclan.cc/admin>, on the **Events** tab, one line:
 
 ```
 Veritas Roulette | 10/09/2026 @ 6 PM EST | 10/11/2026 @ 11 PM EST | YourName | https://your-event-address | key: whatever-you-chose
@@ -77,40 +85,37 @@ Veritas Roulette | 10/09/2026 @ 6 PM EST | 10/11/2026 @ 11 PM EST | YourName | h
 Only the name is required, and dates can be `2026-10-09` or `10/09/2026`.
 Labels like `Starts:` and `Hosted by:` are ignored, so write it how you like.
 
-From then on it runs itself:
-
-- **On the start date** every member's plugin notices the event on the clan
-  board and starts sending drops to your address, with screenshots.
-- **After the end date** it stops. No one has to remember to turn anything off.
-- The event also appears on the clan site's calendar and in everyone's plugin
-  under **Schedule**, so people know it is coming.
-
-The plugin checks the board every few minutes, so going live is not instant.
-It works in whole days, in UTC: an event dated the 9th is live for the whole
-of the 9th. If you need it to start at an exact hour, hold your own board
-closed until then and reject what arrives early.
+That does not switch anything on by itself. What it does is put the event on
+the clan site's calendar and in everyone's plugin under **Schedule**, with the
+address written out, so people know it is coming and know what to paste.
 
 ### About the key
 
 `key: ...` is optional and it is your choice.
 
-**Publish it**, as above, and members need no setup whatsoever. Bear in mind
-the clan board is public, so a published key is not a secret. It is a speed
-bump in front of a board that should be queueing submissions for approval
-anyway.
+**Publish it** on the board and members can copy the address and the key from
+the same place. Bear in mind the clan board is public, so a published key is
+not a secret. It is a speed bump in front of a board that should be queueing
+submissions for approval anyway.
 
-**Leave it out** and hand the key round privately instead. Members then put it
-in the plugin's **Event key** setting themselves. The address still comes from
-the board, so that is the only thing they touch.
+**Leave it out** and hand it round privately in Discord instead.
 
 Either way the key comes back on every post as an `X-Event-Key` header, so you
 can tell your players' drops from anyone else's. Check it and reject the rest.
 
-### Doing it without the clan board
+### Why members have to type it
 
-Members can always type your address into the plugin's **Event URL** setting
-and your key into **Event key**. Anything typed there wins over the board, so
-this still works for a one off, or for testing before you go live.
+The plugin is on RuneLite's Plugin Hub, and the Hub requires that every address
+a plugin sends to is either written into the source or typed in by the player.
+An address the plugin picks up from a server at runtime is not allowed, because
+nobody reviewing the code can see where the data ends up. So the board can show
+your event, but it cannot arm anyone's plugin.
+
+### Ending it
+
+Ask members to clear **Event URL** when you are done, and stop answering at
+your end. Anything that arrives late gets a non 2xx and the player sees it
+refused.
 
 ## Things worth knowing
 

@@ -124,12 +124,6 @@ public class VeritasEventsPlugin extends Plugin
 	private ScheduledFuture<?> refresher;
 	private String boardPassword = "";
 
-	/** The event address the clan board says is running, if any. */
-	private String boardEvent = "";
-
-	/** The key for it, when the host has published one there. */
-	private String boardKey = "";
-
 	/**
 	 * The items the running event is after, lower cased. While the board
 	 * publishes a list, only drops containing one of them are sent; everything
@@ -436,18 +430,6 @@ public class VeritasEventsPlugin extends Plugin
 				{
 					JsonObject clan = gson.fromJson(body.string(), JsonObject.class);
 					p.setClan(clan);
-
-					String running = clan != null && clan.has("liveEvent")
-						? clan.get("liveEvent").getAsString().trim() : "";
-					String runningKey = clan != null && clan.has("liveEventKey")
-						? clan.get("liveEventKey").getAsString().trim() : "";
-
-					if (!running.equals(boardEvent) || !runningKey.equals(boardKey))
-					{
-						boardEvent = running;
-						boardKey = runningKey;
-						refreshEvent();
-					}
 				}
 				catch (Exception e)
 				{
@@ -459,26 +441,18 @@ public class VeritasEventsPlugin extends Plugin
 	}
 
 	/**
-	 * Where event drops go.
-	 *
-	 * Whatever is typed in the settings, so a member can point at a one off
-	 * themselves. Otherwise whichever event the clan board says is running,
-	 * which means a host sets it once and nobody else has to do anything.
+	 * Where event drops go: the address typed into the settings, and nowhere
+	 * else. Blank means the event side of the plugin sits idle.
 	 */
 	private String eventAddress()
 	{
-		String typed = config.eventUrl().trim();
-		return typed.isEmpty() ? boardEvent : typed;
+		return config.eventUrl().trim();
 	}
 
-	/**
-	 * The key that event's board wants, on the same terms as the address: what
-	 * is typed in the settings, otherwise whatever the clan board published.
-	 */
+	/** The key that event's board wants, also from the settings. */
 	private String eventSecret()
 	{
-		String typed = config.eventKey().trim();
-		return typed.isEmpty() ? boardKey : typed;
+		return config.eventKey().trim();
 	}
 
 	/** Asks the board for the standings again every few minutes. */
