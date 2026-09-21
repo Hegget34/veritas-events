@@ -20,8 +20,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -152,6 +154,15 @@ public class VeritasEventsPlugin extends Plugin
 	private boolean toldAboutEvent;
 
 	/**
+	 * Kills of each monster this client has watched, since it started.
+	 *
+	 * Wise Old Man knows the week's total but is minutes behind; this is the
+	 * part that is live, and the two are shown side by side rather than added
+	 * together, because they overlap and nobody could say by how much.
+	 */
+	private final Map<String, Integer> killsSeen = new HashMap<>();
+
+	/**
 	 * The items the running event is after, lower cased. While the board
 	 * publishes a list, only drops containing one of them are sent; everything
 	 * else stays on this machine in the loot tracker where it belongs.
@@ -259,8 +270,33 @@ public class VeritasEventsPlugin extends Plugin
 		if (event.getType() != LootRecordType.NPC && event.getType() != LootRecordType.PLAYER)
 		{
 			log.debug("other loot: {} as {}", event.getName(), event.getType());
-			loot(event.getName(), event.getItems());
+			if (!ignored(event.getName()))
+			{
+				loot(event.getName(), event.getItems());
+			}
 		}
+	}
+
+	/**
+	 * Whether a source is one the player has asked to leave out.
+	 *
+	 * Turning an item into another item reaches us as loot named after what
+	 * went in. Cleaning a tarnished spear is the case that prompted this: the
+	 * spear is already recorded under the monster that dropped it, so a second
+	 * box for the cleaned version is noise.
+	 */
+	private boolean ignored(String source)
+	{
+		String name = String.valueOf(source).toLowerCase();
+		for (String word : config.ignoreSources().split(","))
+		{
+			String trimmed = word.trim().toLowerCase();
+			if (!trimmed.isEmpty() && name.contains(trimmed))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Everything is tracked; only some of it is worth sending anywhere. */
@@ -285,6 +321,16 @@ public class VeritasEventsPlugin extends Plugin
 		}
 
 		log.debug("loot from {}: {} items worth {}", source, items.size(), total);
+
+		synchronized (killsSeen)
+		{
+			String key = String.valueOf(source).toLowerCase();
+			killsSeen.merge(key, 1, Integer::sum);
+			if (panel != null)
+			{
+				panel.setKillsSeen(new HashMap<>(killsSeen));
+			}
+		}
 
 		if (items.size() == 0)
 		{

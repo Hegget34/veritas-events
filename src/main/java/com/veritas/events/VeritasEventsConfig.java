@@ -103,6 +103,16 @@ public interface VeritasEventsConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(keyName = "ignoreSources", name = "Ignore", position = 5, section = eventSection,
+		description = "Sources to keep out of the loot tracker, separated by commas. "
+			+ "Cleaning a tarnished item counts as loot in its own right to "
+			+ "RuneLite, which gives it a box of its own; the drop itself is "
+			+ "already recorded under the monster that dropped it.")
+	default String ignoreSources()
+	{
+		return "Tarnished";
+	}
+
 	@ConfigItem(keyName = "announceDrops", name = "Say it in chat", position = 3, section = eventSection,
 		description = "Write a line in the chat box when a drop is sent to an "
 			+ "event, and when the board will not take one.")

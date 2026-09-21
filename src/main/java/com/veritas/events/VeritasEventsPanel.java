@@ -23,6 +23,7 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,7 +84,7 @@ class VeritasEventsPanel extends PluginPanel
 	private static final int BUTTON_HEIGHT = 26;
 	private static final float HEADING = 17f;
 	private static final float FIGURE = 20f;
-	private static final String[] VIEWS = {"Home", "Event", "Clan stats", "Loot Tracker"};
+	private static final String[] VIEWS = {"Home", "This week", "Event", "Clan stats", "Loot Tracker"};
 
 	/** Ordered worst last, so merging a group keeps the worst outcome. */
 	static final int SENT = 0;
@@ -156,6 +157,10 @@ class VeritasEventsPanel extends PluginPanel
 	private final BooleanSupplier lootTrackerOff;
 	private final JPanel eventTab = column();
 	private final JPanel activityTab = column();
+	private final JPanel weekTab = column();
+
+	/** Kills this client has watched, by monster, lower cased. */
+	private Map<String, Integer> killsSeen = new HashMap<>();
 
 	private final JComboBox<String> viewSelect = new JComboBox<>();
 	private final JPanel pageTab = column();
@@ -449,9 +454,14 @@ class VeritasEventsPanel extends PluginPanel
 
 		if (chosen == 1)
 		{
-			view = eventTab;
+			view = weekTab;
+			drawWeek();
 		}
 		else if (chosen == 2)
+		{
+			view = eventTab;
+		}
+		else if (chosen == 3)
 		{
 			view = statsTab;
 			if (!statsAsked)
@@ -459,7 +469,7 @@ class VeritasEventsPanel extends PluginPanel
 				askGained(metric);
 			}
 		}
-		else if (chosen == 3)
+		else if (chosen == 4)
 		{
 			view = activityTab;
 		}
@@ -608,6 +618,179 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** The name you are playing as, shown under the title. */
+	/** What the plugin has watched you kill since it started. */
+	void setKillsSeen(Map<String, Integer> seen)
+	{
+		killsSeen = seen;
+		SwingUtilities.invokeLater(this::drawWeek);
+	}
+
+	/**
+	 * Skill and boss of the week.
+	 *
+	 * The standings are the board's, counted by Wise Old Man over exactly the
+	 * dates staff set, so nothing is worked out here. What this adds is the
+	 * part a website cannot: it knows who you are. Your row is picked out,
+	 * your position is stated in words rather than left to be counted, and
+	 * for the boss it says how many kills it has watched you get since you
+	 * logged in, which is the one figure on the page that is live.
+	 */
+	private void drawWeek()
+	{
+		weekTab.removeAll();
+
+		JsonObject week = object(lastClan, "week");
+		boolean any = false;
+
+		for (String[] which : new String[][]{
+			{"sotw", "Skill of the week", "XP"},
+			{"botw", "Boss of the week", "kills"},
+		})
+		{
+			JsonObject one = object(week, which[0]);
+			if (one == null)
+			{
+				continue;
+			}
+			any = true;
+			weekTab.add(title(which[1]));
+
+			JsonArray standings = array(one, "standings");
+			// RuneLite writes names with a non breaking space between the words
+			String me = rsn.getText().replace(' ', ' ').trim();
+			int place = 0;
+			long mine = 0;
+
+			if (standings != null)
+			{
+				for (int i = 0; i < standings.size(); i++)
+				{
+					JsonObject row = standings.get(i).getAsJsonObject();
+					if (text(row, "name").equalsIgnoreCase(me))
+					{
+						place = i + 1;
+						mine = number(row, "gained");
+						break;
+					}
+				}
+			}
+
+			JsonArray lines = new JsonArray();
+			lines.add(orDash(text(one, "name")));
+			if (!text(one, "end").isEmpty())
+			{
+				lines.add((has(one, "live") && one.get("live").getAsBoolean()
+					? "Ends " : "Ended ") + text(one, "end"));
+			}
+			weekTab.add(card(lines));
+			weekTab.add(Box.createVerticalStrut(6));
+
+			// where you stand, in words
+			if (place > 0)
+			{
+				weekTab.add(figure(QuantityFormatter.quantityToStackSize(mine) + " " + which[2],
+					"You are " + ordinal(place) + " of " + standings.size()));
+			}
+			else if (standings != null && standings.size() > 0)
+			{
+				weekTab.add(hint("You are not on the board for this one yet."));
+			}
+
+			// the only live figure here: kills this client has watched
+			if (which[0].equals("botw"))
+			{
+				int seen = killsSeen.getOrDefault(text(one, "name").toLowerCase(), 0);
+				if (seen > 0)
+				{
+					weekTab.add(figure(String.valueOf(seen), "Watched since you logged in"));
+				}
+			}
+
+			if (standings != null && standings.size() > 0)
+			{
+				weekTab.add(Box.createVerticalStrut(4));
+				for (int i = 0; i < Math.min(10, standings.size()); i++)
+				{
+					JsonObject row = standings.get(i).getAsJsonObject();
+					boolean you = text(row, "name").equalsIgnoreCase(me);
+					weekTab.add(cells(
+						(i + 1) + "  " + text(row, "name"),
+						QuantityFormatter.quantityToStackSize(number(row, "gained")),
+						you ? GOLD : BONE, you ? GOLD : BRASS));
+				}
+			}
+			else
+			{
+				weekTab.add(hint("Nobody has gained anything yet."));
+			}
+
+			JButton open = link("Competition page", text(one, "link"));
+			if (open != null)
+			{
+				weekTab.add(Box.createVerticalStrut(6));
+				weekTab.add(open);
+			}
+			weekTab.add(Box.createVerticalStrut(14));
+		}
+
+		if (!any)
+		{
+			weekTab.add(title("This week"));
+			weekTab.add(hint("Staff have not set a skill or boss of the week yet. "
+				+ "When they do it shows here, with your own place in it."));
+		}
+
+		weekTab.revalidate();
+		weekTab.repaint();
+	}
+
+	/** 1st, 2nd, 3rd, and everything after. */
+	private static String ordinal(int place)
+	{
+		if (place % 100 >= 11 && place % 100 <= 13)
+		{
+			return place + "th";
+		}
+		switch (place % 10)
+		{
+			case 1:
+				return place + "st";
+			case 2:
+				return place + "nd";
+			case 3:
+				return place + "rd";
+			default:
+				return place + "th";
+		}
+	}
+
+	/** A large brass number over a quiet line saying what it counts. */
+	private static JPanel figure(String value, String caption)
+	{
+		JPanel panel = new JPanel();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		panel.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 3, 0, 0, TEAL_D),
+			BorderFactory.createEmptyBorder(8, 9, 9, 9)));
+
+		JLabel big = new JLabel(value);
+		big.setFont(FontManager.getRunescapeBoldFont().deriveFont(FIGURE));
+		big.setForeground(BRASS);
+		big.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JLabel small = new JLabel(html(caption, CARD_WIDTH));
+		small.setFont(FontManager.getRunescapeFont());
+		small.setForeground(Color.GRAY);
+		small.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		panel.add(big);
+		panel.add(small);
+		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
+		return panel;
+	}
+
 	void setPlayer(String name)
 	{
 		SwingUtilities.invokeLater(() ->
@@ -642,6 +825,7 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			lastClan = clan;
 			drawHome();
+			drawWeek();
 			drawViews();
 		});
 	}
@@ -1353,23 +1537,32 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		JPanel box = new JPanel(new BorderLayout());
 		box.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		box.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
 		box.setAlignmentX(Component.LEFT_ALIGNMENT);
+		box.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 3, 0, 0,
+				entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR
+					: entry.state == SENT ? TEAL_D : ColorScheme.DARK_GRAY_COLOR),
+			BorderFactory.createEmptyBorder(4, 6, 5, 6)));
 
-		JPanel top = new JPanel(new BorderLayout());
+		JPanel top = new JPanel(new BorderLayout(8, 0));
 		top.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		top.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+		top.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 0, 1, 0, TEAL_D),
+			BorderFactory.createEmptyBorder(4, 5, 4, 5)));
 
+		// the monster reads as a heading, not as another line of grey
 		JLabel source = new JLabel(entry.count > 1 ? entry.source + " x " + entry.count : entry.source);
-		source.setFont(FontManager.getRunescapeFont());
-		source.setForeground(entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR : BLUE);
-		top.add(source, BorderLayout.WEST);
+		source.setFont(FontManager.getRunescapeBoldFont());
+		source.setForeground(entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR : BONE);
+		source.setToolTipText(entry.source);
+		source.setMinimumSize(new Dimension(20, 1));
+		top.add(source, BorderLayout.CENTER);
 
 		if (entry.value > 0)
 		{
 			JLabel value = new JLabel(QuantityFormatter.quantityToStackSize(entry.value) + " gp");
-			value.setFont(FontManager.getRunescapeFont());
-			value.setForeground(entry.value >= config.bigDropValue() ? GOLD : Color.GRAY);
+			value.setFont(FontManager.getRunescapeBoldFont());
+			value.setForeground(entry.value >= config.bigDropValue() ? GOLD : BRASS);
 			top.add(value, BorderLayout.EAST);
 		}
 		box.add(top, BorderLayout.NORTH);
@@ -1427,20 +1620,27 @@ class VeritasEventsPanel extends PluginPanel
 		return panel;
 	}
 
-	/** A figure over a caption, the way the loot tracker shows its totals. */
+	/**
+	 * A figure over a caption, the three across the top of the loot tracker.
+	 *
+	 * Brass on a teal underline, so the totals read as the clan's rather than
+	 * as three more grey boxes.
+	 */
 	private static JPanel stat(String caption, String value)
 	{
 		JPanel panel = new JPanel();
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		panel.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+		panel.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 0, 2, 0, TEAL_D),
+			BorderFactory.createEmptyBorder(6, 4, 5, 4)));
 
 		JLabel top = new JLabel(value, SwingConstants.CENTER);
-		top.setFont(FontManager.getRunescapeFont());
-		top.setForeground(GOLD);
+		top.setFont(FontManager.getRunescapeBoldFont());
+		top.setForeground(BRASS);
 		top.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-		JLabel bottom = new JLabel(caption, SwingConstants.CENTER);
+		JLabel bottom = new JLabel(caption.toUpperCase(), SwingConstants.CENTER);
 		bottom.setFont(FontManager.getRunescapeFont());
 		bottom.setForeground(Color.GRAY);
 		bottom.setAlignmentX(Component.CENTER_ALIGNMENT);
