@@ -15,6 +15,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
@@ -57,6 +58,24 @@ class VeritasEventsPanel extends PluginPanel
 	private static final String DROPS = "drops_";
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
+
+	/** The clan site's own palette, so the two look like one thing. */
+	private static final Color BRASS = new Color(0xE0, 0xC0, 0x90);
+	private static final Color BONE = new Color(0xF0, 0xF0, 0xE0);
+	private static final Color TEAL_D = new Color(0x2D, 0x6C, 0x92);
+
+	/**
+	 * How wide wrapped text can be.
+	 *
+	 * The sidebar is {@link PluginPanel#PANEL_WIDTH} wide and what is left
+	 * after its own border, this panel's border and the scrollbar is around
+	 * 170. Anything wider is drawn off the right edge, which is what was
+	 * happening to every hint in here.
+	 */
+	private static final int TEXT_WIDTH = PluginPanel.PANEL_WIDTH - 55;
+
+	/** The same, inside a card, which has an accent and padding of its own. */
+	private static final int CARD_WIDTH = TEXT_WIDTH - 20;
 	private static final int BAR_HEIGHT = 16;
 	private static final int BUTTON_HEIGHT = 26;
 	private static final float HEADING = 17f;
@@ -276,7 +295,7 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			boolean boss = typeSelect.getSelectedIndex() == 1;
 			metrics = boss ? BOSSES : SKILLS;
-			metricCaption.setText(boss ? "BOSS" : "SKILL");
+			metricCaption.setText(spaced(boss ? "Boss" : "Skill"));
 			fillMetrics();
 			askGained(metrics[0]);
 		});
@@ -471,15 +490,30 @@ class VeritasEventsPanel extends PluginPanel
 			BorderFactory.createEmptyBorder(3, 6, 3, 4)));
 	}
 
-	/** A small blue heading above a control, so it is obvious what it picks. */
+	/**
+	 * A small heading above a control, so it is obvious what it picks. Spaced
+	 * out and in brass, since at this size a word of solid capitals is hard to
+	 * read and easy to mistake for the thing underneath it.
+	 */
 	private static JLabel caption(String text)
 	{
-		JLabel label = new JLabel(text.toUpperCase());
+		JLabel label = new JLabel(spaced(text));
 		label.setFont(FontManager.getRunescapeBoldFont());
-		label.setForeground(BLUE);
+		label.setForeground(BRASS);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
-		label.setBorder(BorderFactory.createEmptyBorder(0, 1, 3, 0));
+		label.setBorder(BorderFactory.createEmptyBorder(0, 1, 4, 0));
 		return label;
+	}
+
+	/** A word in spaced capitals, which is how every caption in here is set. */
+	private static String spaced(String text)
+	{
+		StringBuilder out = new StringBuilder();
+		for (char letter : text.toUpperCase().toCharArray())
+		{
+			out.append(out.length() == 0 ? "" : "\u2009").append(letter);
+		}
+		return out.toString();
 	}
 
 	/** Stacked bars: four for a list of kills, two for a grouped one. */
@@ -948,12 +982,10 @@ class VeritasEventsPanel extends PluginPanel
 
 				case "text":
 					JsonArray lines = array(block, "lines");
-					if (lines != null)
+					if (lines != null && lines.size() > 0)
 					{
-						for (JsonElement entry : lines)
-						{
-							into.add(line(entry.getAsString(), Color.LIGHT_GRAY));
-						}
+						into.add(card(lines));
+						into.add(Box.createVerticalStrut(5));
 					}
 					break;
 
@@ -999,8 +1031,9 @@ class VeritasEventsPanel extends PluginPanel
 
 		JPanel table = column();
 		table.setAlignmentX(Component.LEFT_ALIGNMENT);
+		boolean stack = crowded(rows);
 
-		if (columns != null && columns.size() > 0)
+		if (!stack && columns != null && columns.size() > 0)
 		{
 			table.add(cells(lead(columns), last(columns), BLUE, BLUE));
 		}
@@ -1010,7 +1043,9 @@ class VeritasEventsPanel extends PluginPanel
 			for (JsonElement element : rows)
 			{
 				JsonArray row = element.getAsJsonArray();
-				table.add(cells(lead(row), last(row), Color.WHITE, GOLD));
+				table.add(stack
+					? stacked(lead(row), last(row))
+					: cells(lead(row), last(row), Color.WHITE, GOLD));
 			}
 		}
 		return table;
@@ -1400,10 +1435,17 @@ class VeritasEventsPanel extends PluginPanel
 		return cells(left, right, mine ? GOLD : Color.WHITE, Color.LIGHT_GRAY);
 	}
 
-	/** One full width line: something on the left, something on the right. */
+	/**
+	 * One full width line: something on the left, something on the right.
+	 *
+	 * The name goes in the centre rather than the west so that a long one is
+	 * squeezed and ends in an ellipsis. In the west it kept its full width and
+	 * BorderLayout let it run underneath the figure, which is why long rows
+	 * were printed on top of each other.
+	 */
 	private static JPanel cells(String left, String right, Color leftColour, Color rightColour)
 	{
-		JPanel panel = new JPanel(new BorderLayout());
+		JPanel panel = new JPanel(new BorderLayout(8, 0));
 		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		panel.setBorder(BorderFactory.createEmptyBorder(5, 6, 5, 6));
 		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1411,7 +1453,9 @@ class VeritasEventsPanel extends PluginPanel
 		JLabel name = new JLabel(left);
 		name.setFont(FontManager.getRunescapeFont());
 		name.setForeground(leftColour);
-		panel.add(name, BorderLayout.WEST);
+		name.setToolTipText(left);
+		name.setMinimumSize(new Dimension(20, 1));
+		panel.add(name, BorderLayout.CENTER);
 
 		if (!right.isEmpty())
 		{
@@ -1425,14 +1469,154 @@ class VeritasEventsPanel extends PluginPanel
 		return panel;
 	}
 
-	private static JLabel title(String text)
+	/**
+	 * A section heading: brass over a teal rule, the way the clan site marks
+	 * one. Plain white text gave no sense of where a section started.
+	 */
+	private static JPanel title(String text)
 	{
-		JLabel label = new JLabel(text);
+		JPanel panel = new JPanel();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+		panel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		panel.setBorder(BorderFactory.createEmptyBorder(4, 0, 7, 0));
+
+		JLabel label = new JLabel(html(text, TEXT_WIDTH));
 		label.setFont(FontManager.getRunescapeBoldFont().deriveFont(HEADING));
-		label.setForeground(Color.WHITE);
+		label.setForeground(BRASS);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
-		label.setBorder(BorderFactory.createEmptyBorder(2, 0, 7, 0));
-		return label;
+
+		JPanel underline = new JPanel();
+		underline.setBackground(TEAL_D);
+		underline.setAlignmentX(Component.LEFT_ALIGNMENT);
+		underline.setPreferredSize(new Dimension(Integer.MAX_VALUE, 2));
+		underline.setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
+
+		panel.add(label);
+		panel.add(Box.createVerticalStrut(4));
+		panel.add(underline);
+		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
+		return panel;
+	}
+
+	/**
+	 * A stacked row: who on top, what underneath, wrapped.
+	 *
+	 * For tables whose second column is a sentence rather than a figure. Side
+	 * by side there is not room for both in a sidebar, and shortening either
+	 * one loses the part that matters.
+	 */
+	private static JPanel stacked(String top, String bottom)
+	{
+		JPanel panel = new JPanel();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		panel.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 0, 1, 0, ColorScheme.DARK_GRAY_COLOR),
+			BorderFactory.createEmptyBorder(6, 7, 7, 7)));
+
+		JLabel who = new JLabel(html(top, CARD_WIDTH));
+		who.setFont(FontManager.getRunescapeBoldFont());
+		who.setForeground(BONE);
+		who.setAlignmentX(Component.LEFT_ALIGNMENT);
+		panel.add(who);
+
+		if (!bottom.isEmpty())
+		{
+			JLabel what = new JLabel(html(bottom, CARD_WIDTH));
+			what.setFont(FontManager.getRunescapeFont());
+			what.setForeground(BRASS);
+			what.setAlignmentX(Component.LEFT_ALIGNMENT);
+			what.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+			panel.add(what);
+		}
+
+		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
+		return panel;
+	}
+
+	/**
+	 * Loose lines gathered into a card with an accent down the side, so one
+	 * notice or one event is plainly separate from the next. The first line is
+	 * the thing itself and the rest are its details.
+	 */
+	private static JPanel card(JsonArray lines)
+	{
+		JPanel panel = new JPanel();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		panel.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 3, 0, 0, TEAL_D),
+			BorderFactory.createEmptyBorder(7, 8, 8, 7)));
+
+		boolean first = true;
+		for (JsonElement entry : lines)
+		{
+			JLabel label = new JLabel(html(entry.getAsString(), CARD_WIDTH));
+			label.setFont(first ? FontManager.getRunescapeBoldFont() : FontManager.getRunescapeFont());
+			label.setForeground(first ? BONE : Color.GRAY);
+			label.setAlignmentX(Component.LEFT_ALIGNMENT);
+			label.setBorder(BorderFactory.createEmptyBorder(first ? 0 : 3, 0, 0, 0));
+			panel.add(label);
+			first = false;
+		}
+
+		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
+		return panel;
+	}
+
+	/**
+	 * Whether a table's rows are too wide to sit side by side.
+	 *
+	 * Measured in the font they will be drawn in rather than guessed at, and a
+	 * single row that does not fit stacks the whole table, because a list that
+	 * changes shape halfway down is worse than either form.
+	 */
+	private static boolean crowded(@Nullable JsonArray rows)
+	{
+		if (rows == null)
+		{
+			return false;
+		}
+
+		FontMetrics metrics = new JLabel().getFontMetrics(FontManager.getRunescapeFont());
+		int room = PluginPanel.PANEL_WIDTH - 60;
+
+		for (JsonElement element : rows)
+		{
+			JsonArray row = element.getAsJsonArray();
+			String right = last(row);
+			if (right.isEmpty() || figure(right))
+			{
+				continue;
+			}
+			if (metrics.stringWidth(lead(row)) + metrics.stringWidth(right) + 14 > room)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Whether a value is a figure, as against prose: 500, 12.4m, 1,204, 93%. */
+	private static boolean figure(String value)
+	{
+		return value.length() <= 12 && value.matches("(?i)[0-9][0-9.,:%kmb+\\-]*");
+	}
+
+	/**
+	 * Text in a label that wraps at a given width.
+	 *
+	 * Swing labels do not wrap on their own, and the width has to be stated.
+	 * It used to be written in as 200, which is wider than the sidebar, so
+	 * every wrapped line was cut off on the right.
+	 */
+	private static String html(String text, int width)
+	{
+		String safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+		return "<html><body style='width:" + width + "px'>" + safe + "</body></html>";
 	}
 
 	private static JLabel line(String text, Color colour)
@@ -1448,8 +1632,8 @@ class VeritasEventsPanel extends PluginPanel
 	/** Wrapped grey text, for the empty states. */
 	private static JLabel hint(String text)
 	{
-		JLabel label = line("<html><body style='width:200px'>" + text + "</body></html>", Color.GRAY);
-		label.setBorder(BorderFactory.createEmptyBorder(4, 0, 4, 0));
+		JLabel label = line(html(text, TEXT_WIDTH), Color.GRAY);
+		label.setBorder(BorderFactory.createEmptyBorder(4, 0, 6, 0));
 		return label;
 	}
 
