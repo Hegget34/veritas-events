@@ -25,13 +25,17 @@ import java.awt.image.BufferedImage;
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -168,6 +172,23 @@ class VeritasEventsPanel extends PluginPanel
 	private boolean statsAsked;
 	private final BiConsumer<String, String> onGained;
 	private final BooleanSupplier lootTrackerOff;
+
+	/** Told what to look up, because only it may read an item's composition. */
+	private final Consumer<List<Integer>> onFactsWanted;
+
+	/**
+	 * What each item id is called and what it is worth, for the tooltips.
+	 *
+	 * Filled by the plugin. An id it has not told us about yet simply has no
+	 * tooltip until it does.
+	 */
+	private Map<Integer, Facts> facts = Collections.emptyMap();
+
+	/** Ids already asked about, so one that cannot be resolved is asked once. */
+	private final Set<Integer> askedAbout = new LinkedHashSet<>();
+
+	/** Ids noticed while drawing, sent off once the drawing is finished. */
+	private final Set<Integer> toAsk = new LinkedHashSet<>();
 	private final JPanel eventTab = column();
 	private final JPanel activityTab = column();
 	private final JPanel weekTab = column();
@@ -198,7 +219,7 @@ class VeritasEventsPanel extends PluginPanel
 	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager,
 		@Nullable ImageIcon logo, Runnable onResend, Runnable onRefresh,
 		BiConsumer<String, String> onGained, BooleanSupplier lootTrackerOff,
-		Gson gson, ConfigManager configManager)
+		Consumer<List<Integer>> onFactsWanted, Gson gson, ConfigManager configManager)
 	{
 		this.config = config;
 		this.itemManager = itemManager;
@@ -207,6 +228,7 @@ class VeritasEventsPanel extends PluginPanel
 		this.onRefresh = onRefresh;
 		this.onGained = onGained;
 		this.lootTrackerOff = lootTrackerOff;
+		this.onFactsWanted = onFactsWanted;
 
 		setLayout(new BorderLayout());
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
@@ -712,6 +734,28 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** The name you are playing as, shown under the title. */
+	/** An item's name and its two prices, as read on the client thread. */
+	static final class Facts
+	{
+		private final String name;
+		private final int ge;
+		private final int ha;
+
+		Facts(String name, int ge, int ha)
+		{
+			this.name = name;
+			this.ge = ge;
+			this.ha = ha;
+		}
+	}
+
+	/** What each item is called and worth, once the plugin has looked it up. */
+	void setFacts(Map<Integer, Facts> known)
+	{
+		facts = known;
+		SwingUtilities.invokeLater(this::drawActivity);
+	}
+
 	/** What the plugin has watched you kill since it started. */
 	void setKillsSeen(Map<String, Integer> seen)
 	{
@@ -1553,6 +1597,15 @@ class VeritasEventsPanel extends PluginPanel
 
 		activityTab.revalidate();
 		activityTab.repaint();
+
+		// Asked for after the drawing rather than during it, so one pass over
+		// the list costs one request however many unknown items are in it.
+		if (!toAsk.isEmpty())
+		{
+			List<Integer> asking = new ArrayList<>(toAsk);
+			toAsk.clear();
+			onFactsWanted.accept(asking);
+		}
 	}
 
 	/** What this event is asking for, so you know what is worth going after. */
@@ -1846,6 +1899,7 @@ class VeritasEventsPanel extends PluginPanel
 				// taller than the 36 by 32 artwork, so it is not pressed
 				// against the rules above and below it
 				icon.setPreferredSize(new Dimension(38, 38));
+				icon.setToolTipText(describe(item[0], item[1]));
 				icon.setVerticalAlignment(SwingConstants.CENTER);
 				icon.setHorizontalAlignment(SwingConstants.CENTER);
 				icon.setOpaque(true);
@@ -2093,6 +2147,50 @@ class VeritasEventsPanel extends PluginPanel
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * What to show when the pointer rests on an item.
+	 *
+	 * Nothing at all until the plugin has told us about that id, because the
+	 * alternative is reading it here, on the Swing thread, which is not
+	 * allowed and took the whole tab down when it was tried.
+	 */
+	@Nullable
+	private String describe(int id, int quantity)
+	{
+		Facts known = facts.get(id);
+		if (known == null)
+		{
+			if (askedAbout.add(id))
+			{
+				toAsk.add(id);
+			}
+			return null;
+		}
+
+		StringBuilder out = new StringBuilder("<html>");
+		out.append(escape(known.name));
+		if (quantity > 1)
+		{
+			out.append(" x ").append(String.format("%,d", quantity));
+		}
+		out.append("<br>GE: ").append(worth(known.ge, quantity));
+		out.append("<br>HA: ").append(worth(known.ha, quantity));
+		return out.append("</html>").toString();
+	}
+
+	/** "9,315 (23 ea)", or the one figure when there is only one of them. */
+	private static String worth(int each, int quantity)
+	{
+		String total = String.format("%,d", (long) each * quantity);
+		return quantity > 1 ? total + " (" + String.format("%,d", each) + " ea)" : total;
+	}
+
+	/** So an item with a bracket in its name does not break the tooltip. */
+	private static String escape(String text)
+	{
+		return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 
 	/** Whether a value is a figure, as against prose: 500, 12.4m, 1,204, 93%. */

@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +39,7 @@ import javax.inject.Inject;
 import javax.swing.ImageIcon;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
+import net.runelite.api.ItemComposition;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
@@ -45,6 +47,7 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.Notifier;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
@@ -146,6 +149,9 @@ public class VeritasEventsPlugin extends Plugin
 	@Inject
 	private Notifier notifier;
 
+	@Inject
+	private ClientThread clientThread;
+
 	private VeritasEventsPanel panel;
 	private NavigationButton navButton;
 	private Runnable lastSend;
@@ -176,6 +182,15 @@ public class VeritasEventsPlugin extends Plugin
 	private final Map<String, Integer> killsSeen = new HashMap<>();
 
 	/**
+	 * What each item id is called and worth.
+	 *
+	 * Read on the client thread, which is the only place an item's
+	 * composition may be touched, and handed to the panel finished so it
+	 * never has to ask for one while drawing.
+	 */
+	private final Map<Integer, VeritasEventsPanel.Facts> facts = new ConcurrentHashMap<>();
+
+	/**
 	 * The items the running event is after, lower cased. While the board
 	 * publishes a list, only drops containing one of them are sent; everything
 	 * else stays on this machine in the loot tracker where it belongs.
@@ -194,7 +209,7 @@ public class VeritasEventsPlugin extends Plugin
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
 		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon),
 			this::resend, this::refreshByHand, this::gained, this::lootTrackerOff,
-			gson, configManager);
+			this::factsWanted, gson, configManager);
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas")
 			.icon(icon)
@@ -340,6 +355,54 @@ public class VeritasEventsPlugin extends Plugin
 		return false;
 	}
 
+	/**
+	 * Reads what an item is called and worth, and remembers it.
+	 *
+	 * Must be on the client thread. Callers that already are simply call it;
+	 * anything else goes through factsWanted below.
+	 */
+	private void learn(int id)
+	{
+		if (facts.containsKey(id))
+		{
+			return;
+		}
+		try
+		{
+			ItemComposition what = itemManager.getItemComposition(id);
+			facts.put(id, new VeritasEventsPanel.Facts(
+				what.getName(), itemManager.getItemPrice(id), what.getHaPrice()));
+		}
+		catch (Exception unknownItem)
+		{
+			// Remembered anyway, so an id that cannot be read is not asked
+			// for again on every redraw.
+			facts.put(id, new VeritasEventsPanel.Facts("Item " + id, 0, 0));
+		}
+	}
+
+	/**
+	 * Items the panel has drawn but knows nothing about.
+	 *
+	 * These are the totals restored from disk when you log in: they carry ids
+	 * and quantities and nothing else. Resolved on the client thread and
+	 * handed back in one go.
+	 */
+	private void factsWanted(List<Integer> ids)
+	{
+		clientThread.invoke(() ->
+		{
+			for (int id : ids)
+			{
+				learn(id);
+			}
+			if (panel != null)
+			{
+				panel.setFacts(new HashMap<>(facts));
+			}
+		});
+	}
+
 	/** Everything is tracked; only some of it is worth sending anywhere. */
 	private void loot(String source, Collection<ItemStack> stacks)
 	{
@@ -352,6 +415,7 @@ public class VeritasEventsPlugin extends Plugin
 			long each = itemManager.getItemPrice(stack.getId());
 			total += each * stack.getQuantity();
 			icons.add(new int[]{stack.getId(), stack.getQuantity()});
+			learn(stack.getId());
 
 			JsonObject item = new JsonObject();
 			item.addProperty("id", stack.getId());
@@ -370,6 +434,7 @@ public class VeritasEventsPlugin extends Plugin
 			if (panel != null)
 			{
 				panel.setKillsSeen(new HashMap<>(killsSeen));
+				panel.setFacts(new HashMap<>(facts));
 			}
 		}
 
