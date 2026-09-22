@@ -348,10 +348,10 @@ public class VeritasEventsPlugin extends Plugin
 			return;
 		}
 
-		if (!config.sendLoot() || eventAddress().isEmpty() || total < config.minimumValue()
-			|| !onTheList(items))
+		String why = whyKept(total, items);
+		if (!why.isEmpty())
 		{
-			report(source, icons, total, VeritasEventsPanel.KEPT);
+			report(source, icons, total, VeritasEventsPanel.KEPT, why);
 			return;
 		}
 
@@ -361,6 +361,34 @@ public class VeritasEventsPlugin extends Plugin
 		payload.addProperty("big", total >= config.bigDropValue());
 		payload.add("items", items);
 		send(payload, source, icons, total);
+	}
+
+	/**
+	 * Why a drop is not going anywhere, or nothing if it is.
+	 *
+	 * Four quite different situations ended up as the same "Not sent", which
+	 * told the player what had happened and never why, when why is the only
+	 * part they can do anything about.
+	 */
+	private String whyKept(long total, JsonArray items)
+	{
+		if (!config.sendLoot())
+		{
+			return "Sending drops is switched off in the settings.";
+		}
+		if (eventAddress().isEmpty())
+		{
+			return "No event running. Kept here for your own records.";
+		}
+		if (total < config.minimumValue())
+		{
+			return "Under the minimum you set, so the event was not troubled with it.";
+		}
+		if (!onTheList(items))
+		{
+			return "Nothing here is on the event's list of wanted items.";
+		}
+		return "";
 	}
 
 	@Subscribe
@@ -819,39 +847,35 @@ public class VeritasEventsPlugin extends Plugin
 				{
 					say("could not reach the event board. Press Send again to retry.", false);
 				}
-				report(source, icons, value, VeritasEventsPanel.FAILED);
+				report(source, icons, value, VeritasEventsPanel.FAILED,
+					"Could not reach the event. Press Send again when you are back online.");
 			}
 
 			@Override
 			public void onResponse(Call call, Response response)
 			{
-				if (response.isSuccessful())
+				boolean took = response.isSuccessful();
+				if (config.announceDrops())
 				{
-					if (config.announceDrops())
-					{
-						say(source + " counted for the event.", true);
-					}
-				}
-				else
-				{
-					if (config.announceDrops())
-					{
-						say("the event board would not take that drop.", false);
-					}
+					say(took ? source + " counted for the event."
+						: "the event board would not take that drop.", took);
 				}
 				report(source, icons, value,
-					response.isSuccessful() ? VeritasEventsPanel.SENT : VeritasEventsPanel.FAILED);
+					took ? VeritasEventsPanel.SENT : VeritasEventsPanel.FAILED,
+					took ? "Counted for the event."
+						: "The event's board refused the upload (" + response.code()
+							+ "). Press Send again.");
 				response.close();
 			}
 		});
 	}
 
-	private void report(String source, List<int[]> icons, long value, int state)
+	private void report(String source, List<int[]> icons, long value, int state, String why)
 	{
 		VeritasEventsPanel p = panel;
 		if (p != null)
 		{
-			p.record(source, icons, value, state);
+			p.record(source, icons, value, state, why);
 		}
 	}
 }

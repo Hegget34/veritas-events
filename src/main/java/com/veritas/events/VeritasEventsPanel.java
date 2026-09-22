@@ -59,6 +59,9 @@ class VeritasEventsPanel extends PluginPanel
 
 	/** Items to a row in a loot box, the same as RuneLite's own tracker uses. */
 	private static final int ICON_COLUMNS = 5;
+
+	/** What shows through the gaps between item cells. */
+	private static final Color GRID = new Color(0x3A, 0x3A, 0x48);
 	private static final String DROPS = "drops_";
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
@@ -1269,9 +1272,10 @@ class VeritasEventsPanel extends PluginPanel
 	 * is worth having with no event running, so everything is kept and only the
 	 * outcome differs.
 	 */
-	void record(String source, List<int[]> items, long value, int state)
+	void record(String source, List<int[]> items, long value, int state, String why)
 	{
 		Sent one = new Sent(source, items, value, state);
+		one.reason = why;
 		synchronized (sent)
 		{
 			sent.addFirst(one);
@@ -1475,22 +1479,24 @@ class VeritasEventsPanel extends PluginPanel
 	private static List<Sent> examples()
 	{
 		List<Sent> out = new ArrayList<>();
-		out.add(example("Vorkath", SENT, 1, new int[][]{
+		out.add(example("Vorkath", SENT, 1, "Counted for the event.", new int[][]{
 			{11840, 1}, {995, 84000}, {565, 120}, {561, 90}, {385, 3}, {1149, 1},
 		}));
-		out.add(example("Alchemical hydra", SENT, 6, new int[][]{
+		out.add(example("Alchemical hydra", SENT, 6, "Counted for the event.", new int[][]{
 			{995, 240000}, {565, 340}, {385, 12}, {2577, 1},
 		}));
-		out.add(example("Reward casket (elite)", FAILED, 1, new int[][]{
-			{11802, 1}, {995, 15000},
-		}));
-		out.add(example("Zulrah", KEPT, 23, new int[][]{
-			{995, 1120000}, {561, 610}, {565, 480}, {4151, 1}, {11832, 1}, {385, 40},
-		}));
+		out.add(example("Reward casket (elite)", FAILED, 1,
+			"The event's board refused the upload (503). Press Send again.", new int[][]{
+				{11802, 1}, {995, 15000},
+			}));
+		out.add(example("Zulrah", KEPT, 23,
+			"No event running. Kept here for your own records.", new int[][]{
+				{995, 1120000}, {561, 610}, {565, 480}, {4151, 1}, {11832, 1}, {385, 40},
+			}));
 		return out;
 	}
 
-	private static Sent example(String source, int state, int count, int[][] items)
+	private static Sent example(String source, int state, int count, String why, int[][] items)
 	{
 		List<int[]> stacks = new ArrayList<>();
 		long value = 0;
@@ -1501,6 +1507,7 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		Sent one = new Sent(source, stacks, value, state);
 		one.count = count;
+		one.reason = why;
 		return one;
 	}
 
@@ -1638,16 +1645,24 @@ class VeritasEventsPanel extends PluginPanel
 			 * and clipped the rest, so a kill with more than five distinct
 			 * drops appeared to have lost them.
 			 */
+			/*
+			 * One pixel gaps over a lighter background, so what shows through
+			 * between the cells is a grid line. Drawing borders on the labels
+			 * themselves would double them up wherever two cells meet.
+			 */
 			int rows = (entry.items.size() + ICON_COLUMNS - 1) / ICON_COLUMNS;
-			JPanel icons = new JPanel(new GridLayout(rows, ICON_COLUMNS, 2, 2));
-			icons.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-			icons.setBorder(BorderFactory.createEmptyBorder(3, 0, 1, 0));
+			JPanel icons = new JPanel(new GridLayout(rows, ICON_COLUMNS, 1, 1));
+			icons.setBackground(GRID);
+			icons.setBorder(BorderFactory.createMatteBorder(1, 1, 1, 1, GRID));
 
 			for (int[] item : entry.items)
 			{
 				JLabel icon = new JLabel();
 				icon.setPreferredSize(new Dimension(36, 32));
 				icon.setVerticalAlignment(SwingConstants.CENTER);
+				icon.setHorizontalAlignment(SwingConstants.CENTER);
+				icon.setOpaque(true);
+				icon.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 				// No name in the tooltip: reading an item's composition has to
 				// happen on the client thread, and this is the Swing one.
 				// Asking for it here threw, which took the whole tab with it.
@@ -1658,18 +1673,20 @@ class VeritasEventsPanel extends PluginPanel
 			// the last row is padded so the grid does not stretch what is in it
 			for (int spare = rows * ICON_COLUMNS - entry.items.size(); spare > 0; spare--)
 			{
-				icons.add(new JLabel());
+				JLabel blank = new JLabel();
+				blank.setOpaque(true);
+				blank.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+				icons.add(blank);
 			}
 			box.add(icons, BorderLayout.CENTER);
 		}
 
-		if (entry.state == FAILED)
+		if (entry.state != SENT && !entry.reason.isEmpty())
 		{
-			box.add(line("Not accepted by the board", ColorScheme.PROGRESS_ERROR_COLOR), BorderLayout.SOUTH);
-		}
-		else if (entry.state == KEPT)
-		{
-			box.add(line("Not sent", Color.GRAY), BorderLayout.SOUTH);
+			JLabel why = line(html(entry.reason, CARD_WIDTH),
+				entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR : Color.GRAY);
+			why.setBorder(BorderFactory.createEmptyBorder(4, 1, 1, 1));
+			box.add(why, BorderLayout.SOUTH);
 		}
 		return box;
 	}
@@ -1993,6 +2010,9 @@ class VeritasEventsPanel extends PluginPanel
 		private long value;
 		private int count;
 
+		/** Why it was sent, kept or refused, in words the player can act on. */
+		private String reason = "";
+
 		Sent(String source, List<int[]> items, long value, int state)
 		{
 			this.source = source;
@@ -2010,7 +2030,9 @@ class VeritasEventsPanel extends PluginPanel
 			{
 				copied.add(new int[]{item[0], item[1]});
 			}
-			return new Sent(source, copied, value, state);
+			Sent one = new Sent(source, copied, value, state);
+			one.reason = reason;
+			return one;
 		}
 
 		void merge(Sent other)
@@ -2018,6 +2040,10 @@ class VeritasEventsPanel extends PluginPanel
 			count += other.count;
 			value += other.value;
 			state = Math.max(state, other.state);
+			if (!other.reason.isEmpty())
+			{
+				reason = other.reason;
+			}
 			for (int[] add : other.items)
 			{
 				boolean known = false;
