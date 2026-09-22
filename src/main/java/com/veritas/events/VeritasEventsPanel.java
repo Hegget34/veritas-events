@@ -132,7 +132,8 @@ class VeritasEventsPanel extends PluginPanel
 
 	private static final String[][] COMMUNITY = {
 		{"Discord", "https://discord.gg/veritascc"},
-		{"Clan website", "https://osrs-bingo-arbd.onrender.com/"},
+		{"Clan website", "https://veritasclan.cc"},
+		{"Events portal", "https://osrs-bingo-arbd.onrender.com/"},
 	};
 
 	private static final String[][] TRACKING = {
@@ -442,16 +443,21 @@ class VeritasEventsPanel extends PluginPanel
 		homeTab.repaint();
 	}
 
+	/**
+	 * The plugin's own links, which are constants a few lines above.
+	 *
+	 * These go straight to a button rather than through the check a board's
+	 * links face. That check exists because a board could name any address it
+	 * liked; one written into this file cannot change at runtime and is as
+	 * verifiable as anything gets. Putting them through it anyway dropped the
+	 * clan's own website off the Home page.
+	 */
 	private void links(JPanel into, String[][] links)
 	{
 		for (String[] entry : links)
 		{
-			JButton button = link(entry[0], entry[1]);
-			if (button != null)
-			{
-				into.add(button);
-				into.add(Box.createVerticalStrut(4));
-			}
+			into.add(button(entry[0], entry[1]));
+			into.add(Box.createVerticalStrut(4));
 		}
 	}
 
@@ -1161,6 +1167,12 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			return null;
 		}
+		return button(label, url);
+	}
+
+	/** The button itself, once something has decided it may exist. */
+	private static JButton button(String label, String url)
+	{
 		JButton button = new JButton(label);
 		button.setFont(FontManager.getRunescapeFont());
 		button.setToolTipText(url);
