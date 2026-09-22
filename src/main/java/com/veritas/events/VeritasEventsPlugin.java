@@ -90,6 +90,14 @@ public class VeritasEventsPlugin extends Plugin
 
 	/** For the lines that mean something did not work. */
 	private static final Color TROUBLE = new Color(0xD3, 0x5F, 0x5F);
+
+	/**
+	 * Sources that are a conversion rather than a drop, lower cased.
+	 *
+	 * Cleaning a tarnished item is reported as loot named after the tarnished
+	 * one, which already sits under whatever dropped it.
+	 */
+	private static final String[] NOT_LOOT = {"tarnished"};
 	private static final MediaType JSON = MediaType.get("application/json");
 	private static final MediaType JPEG = MediaType.get("image/jpeg");
 	private static final int MAX_WIDTH = 1920;
@@ -223,7 +231,10 @@ public class VeritasEventsPlugin extends Plugin
 	{
 		if (VeritasEventsConfig.GROUP.equals(event.getGroup()) && panel != null)
 		{
+			// the loot tab reads settings of its own, so it has to be redrawn
+			// too; without this, turning on the example drops did nothing
 			panel.refresh();
+			panel.redraw();
 			refresh();
 			reschedule();
 		}
@@ -279,20 +290,19 @@ public class VeritasEventsPlugin extends Plugin
 	}
 
 	/**
-	 * Whether a source is one the player has asked to leave out.
+	 * Whether this is a conversion rather than a drop.
 	 *
-	 * Turning an item into another item reaches us as loot named after what
-	 * went in. Cleaning a tarnished spear is the case that prompted this: the
-	 * spear is already recorded under the monster that dropped it, so a second
-	 * box for the cleaned version is noise.
+	 * Turning one item into another reaches RuneLite as loot in its own right,
+	 * named after what went in. Cleaning a tarnished spear is the case that
+	 * prompted this: the spear is already recorded under the monster that
+	 * dropped it, so a second box for the cleaned version is noise.
 	 */
-	private boolean ignored(String source)
+	private static boolean ignored(String source)
 	{
 		String name = String.valueOf(source).toLowerCase();
-		for (String word : config.ignoreSources().split(","))
+		for (String word : NOT_LOOT)
 		{
-			String trimmed = word.trim().toLowerCase();
-			if (!trimmed.isEmpty() && name.contains(trimmed))
+			if (name.contains(word))
 			{
 				return true;
 			}

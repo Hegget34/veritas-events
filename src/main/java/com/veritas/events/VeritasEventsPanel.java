@@ -804,6 +804,16 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** Updates the connection line. */
+	/** Draws the tabs that read the settings directly. */
+	void redraw()
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			drawActivity();
+			drawWeek();
+		});
+	}
+
 	void refresh()
 	{
 		SwingUtilities.invokeLater(() ->
