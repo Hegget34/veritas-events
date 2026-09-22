@@ -61,6 +61,21 @@ Set a **Big drop value** and anything worth at least that much is flagged in the
 message as `"big": true`, so the event page can call it out instead of listing
 it quietly with everything else. It defaults to 1,000,000 gp.
 
+## Where this plugin can send you
+
+Every address it can reach is either written into the source or typed in by
+you. There is no case where a server's answer decides what it talks to.
+
+- **Clan board** - a setting, which defaults to the clan's own board
+- **api.wiseoldman.net** - a constant, read only, for the clan stats
+- **Event URL** - a setting, blank until you fill it in, and the only place
+  drops are ever posted
+
+Links on a board's pages get a button only when they point somewhere the clan
+already uses, such as Wise Old Man or Discord, or at an address you have set
+yourself. Anything else is printed as text to read and copy rather than given
+a button, so the plugin cannot be steered to open an arbitrary destination.
+
 ## The side panel
 
 The sidebar panel is picked from a dropdown:

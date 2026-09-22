@@ -103,15 +103,6 @@ public interface VeritasEventsConfig extends Config
 		return true;
 	}
 
-	@ConfigItem(keyName = "showExamples", name = "Show example drops", position = 6, section = eventSection,
-		description = "Fills the loot tracker with made up drops so you can see "
-			+ "what it looks like before you have any. They only appear while "
-			+ "the tracker is empty, and are labelled.")
-	default boolean showExamples()
-	{
-		return false;
-	}
-
 	@ConfigItem(keyName = "announceDrops", name = "Say it in chat", position = 3, section = eventSection,
 		description = "Write a line in the chat box when a drop is sent to an "
 			+ "event, and when the board will not take one.")

@@ -22,6 +22,7 @@ import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -39,7 +40,9 @@ import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.plaf.basic.BasicButtonUI;
@@ -683,6 +686,7 @@ class VeritasEventsPanel extends PluginPanel
 		thread.setPreferredSize(new Dimension(Integer.MAX_VALUE, 2));
 		thread.setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
 
+		rsn.setText("Not logged in");
 		rsn.setFont(FontManager.getRunescapeFont());
 		rsn.setForeground(BONE);
 		rsn.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1039,13 +1043,121 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/**
-	 * A button that opens one of the board's links. Only ordinary web addresses
-	 * are offered, and nothing opens until the player clicks it.
+	 * Hosts a board is allowed to offer a button to.
+	 *
+	 * The clan's own places and the trackers it uses. A board can put a link
+	 * on a page, but it cannot invent a destination: anything not on this list
+	 * or typed into the settings by the player is simply not drawn.
+	 */
+	private static final String[] KNOWN_HOSTS = {
+		"veritasclan.cc", "wiseoldman.net", "droptracker.io", "templeosrs.com",
+		"discord.gg", "discord.com", "github.com", "oldschool.runescape.wiki",
+	};
+
+	/** The host of an address, lower cased, or nothing if it has none. */
+	private static String hostOf(String url)
+	{
+		try
+		{
+			String host = new URI(url.trim()).getHost();
+			return host == null ? "" : host.toLowerCase();
+		}
+		catch (Exception notAnAddress)
+		{
+			return "";
+		}
+	}
+
+	/**
+	 * Whether the player's browser may be sent to this address.
+	 *
+	 * Somewhere the clan already uses, or wherever the player has pointed the
+	 * plugin themselves. A board answering with a link to anywhere else gets
+	 * no button, so every address this plugin can open is either written here
+	 * or was typed into the settings.
+	 */
+	private boolean mayOpen(String url)
+	{
+		String host = hostOf(url);
+		if (host.isEmpty())
+		{
+			return false;
+		}
+		for (String known : KNOWN_HOSTS)
+		{
+			if (host.equals(known) || host.endsWith("." + known))
+			{
+				return true;
+			}
+		}
+		for (String typed : new String[]{config.clanUrl(), config.eventUrl()})
+		{
+			String mine = hostOf(typed);
+			if (!mine.isEmpty() && mine.equals(host))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * A board's link, as a button where we are willing to open it and as plain
+	 * text where we are not.
+	 *
+	 * An event hosted somewhere the clan does not already use is a perfectly
+	 * ordinary thing, and hiding its address to avoid opening it would lose
+	 * the member the one piece of information they need. So it is written
+	 * out to be read and copied instead.
+	 */
+	private JComponent offer(String label, String url)
+	{
+		JButton button = link(label, url);
+		if (button != null)
+		{
+			return button;
+		}
+
+		JPanel told = new JPanel();
+		told.setLayout(new BoxLayout(told, BoxLayout.Y_AXIS));
+		told.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		told.setAlignmentX(Component.LEFT_ALIGNMENT);
+		told.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 3, 0, 0, TEAL_D),
+			BorderFactory.createEmptyBorder(7, 8, 8, 7)));
+
+		JLabel what = new JLabel(html(label.isEmpty() ? "Address" : label, CARD_WIDTH));
+		what.setFont(FontManager.getRunescapeBoldFont());
+		what.setForeground(BONE);
+		what.setAlignmentX(Component.LEFT_ALIGNMENT);
+		told.add(what);
+
+		JTextField address = new JTextField(url);
+		address.setEditable(false);
+		address.setFont(FontManager.getRunescapeSmallFont());
+		address.setForeground(Color.GRAY);
+		address.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		address.setBorder(BorderFactory.createEmptyBorder(3, 0, 0, 0));
+		address.setAlignmentX(Component.LEFT_ALIGNMENT);
+		address.setCaretPosition(0);
+		address.setToolTipText("Select and copy this into the Event URL setting");
+		told.add(address);
+
+		told.setMaximumSize(new Dimension(Integer.MAX_VALUE, told.getPreferredSize().height));
+		return told;
+	}
+
+	/**
+	 * A button that opens one of the board's links. Only ordinary web
+	 * addresses are offered, only to hosts the clan already uses or the player
+	 * has set, and nothing opens until the player clicks it.
 	 */
 	@Nullable
-	private static JButton link(String label, String url)
+	private JButton link(String label, String url)
 	{
-		if (label.isEmpty() || !(url.startsWith("https://") || url.startsWith("http://")))
+		if (label.isEmpty()
+			|| !(url.startsWith("https://") || url.startsWith("http://"))
+			|| !mayOpen(url))
 		{
 			return null;
 		}
@@ -1310,12 +1422,8 @@ class VeritasEventsPanel extends PluginPanel
 					break;
 
 				case "link":
-					JButton button = link(text(block, "label"), text(block, "url"));
-					if (button != null)
-					{
-						into.add(Box.createVerticalStrut(4));
-						into.add(button);
-					}
+					into.add(Box.createVerticalStrut(4));
+					into.add(offer(text(block, "label"), text(block, "url")));
 					break;
 
 				default:
@@ -1554,16 +1662,6 @@ class VeritasEventsPanel extends PluginPanel
 		activityTab.add(Box.createVerticalStrut(10));
 
 		List<Sent> entries = entries();
-
-		// Nothing to show and asked for something to look at: made up drops,
-		// only while there are no real ones, and said so at the top.
-		if (entries.isEmpty() && config.showExamples())
-		{
-			activityTab.add(hint("Example drops, so you can see what this looks "
-				+ "like. Turn off Show example drops in the settings."));
-			entries = examples();
-		}
-
 		if (entries.isEmpty())
 		{
 			activityTab.add(hint(lootTrackerOff.getAsBoolean()
@@ -1577,48 +1675,6 @@ class VeritasEventsPanel extends PluginPanel
 			activityTab.add(box(entry));
 			activityTab.add(Box.createVerticalStrut(6));
 		}
-	}
-
-	/**
-	 * Made up drops, for showing the tracker to somebody.
-	 *
-	 * Four kills in the three states a drop can end in, so a demonstration
-	 * covers the colours down the side as well as the layout. Long standing
-	 * item ids, chosen so the icons resolve on any client.
-	 */
-	private static List<Sent> examples()
-	{
-		List<Sent> out = new ArrayList<>();
-		out.add(example("Vorkath", SENT, 1, "Counted for the event.", new int[][]{
-			{11840, 1}, {995, 84000}, {565, 120}, {561, 90}, {385, 3}, {1149, 1},
-		}));
-		out.add(example("Alchemical hydra", SENT, 6, "Counted for the event.", new int[][]{
-			{995, 240000}, {565, 340}, {385, 12}, {2577, 1},
-		}));
-		out.add(example("Reward casket (elite)", FAILED, 1,
-			"The event would not take this one. Press Send again.", new int[][]{
-				{11802, 1}, {995, 15000},
-			}));
-		// the ordinary drop, with no event running: no bar and nothing said
-		out.add(example("Zulrah", KEPT, 23, "", new int[][]{
-			{995, 1120000}, {561, 610}, {565, 480}, {4151, 1}, {11832, 1}, {385, 40},
-		}));
-		return out;
-	}
-
-	private static Sent example(String source, int state, int count, String why, int[][] items)
-	{
-		List<int[]> stacks = new ArrayList<>();
-		long value = 0;
-		for (int[] item : items)
-		{
-			stacks.add(new int[]{item[0], item[1]});
-			value += (long) item[1] * 1200;
-		}
-		Sent one = new Sent(source, stacks, value, state);
-		one.count = count;
-		one.reason = why;
-		return one;
 	}
 
 	/** How many drops are on record. */
@@ -1753,7 +1809,7 @@ class VeritasEventsPanel extends PluginPanel
 		tally.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		tally.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		JLabel count = new JLabel(entry.count + (entry.count == 1 ? " kill" : " kills"));
+		JLabel count = new JLabel(String.valueOf(entry.count));
 		count.setFont(FontManager.getRunescapeFont());
 		count.setForeground(Color.GRAY);
 		tally.add(count, BorderLayout.WEST);
