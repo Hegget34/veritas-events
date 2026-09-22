@@ -42,6 +42,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.plaf.basic.BasicButtonUI;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
@@ -591,11 +592,19 @@ class VeritasEventsPanel extends PluginPanel
 	 */
 	private static void pressable(JButton button)
 	{
+		/*
+		 * Through the basic UI, not the look and feel's own. RuneLite's paints
+		 * its buttons its way and ignores a background set on them, which is
+		 * why styling this one appeared to do nothing at all.
+		 */
+		button.setUI(new BasicButtonUI());
+		button.setOpaque(true);
 		button.setFont(FontManager.getRunescapeFont());
 		button.setForeground(BONE);
 		button.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		button.setFocusPainted(false);
 		button.setFocusable(false);
+		button.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
 		button.setBorder(BorderFactory.createCompoundBorder(
 			BorderFactory.createLineBorder(ColorScheme.BORDER_COLOR),
 			BorderFactory.createEmptyBorder(3, 9, 3, 9)));
@@ -662,17 +671,33 @@ class VeritasEventsPanel extends PluginPanel
 		names.setLayout(new BoxLayout(names, BoxLayout.Y_AXIS));
 		names.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		JLabel title = new JLabel("Veritas");
-		title.setFont(FontManager.getRunescapeBoldFont().deriveFont(18f));
-		title.setForeground(GOLD);
+		JLabel title = new JLabel("VERITAS");
+		title.setFont(FontManager.getRunescapeBoldFont().deriveFont(19f));
+		title.setForeground(BRASS);
+		title.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		// a thread of teal under the name, as on the clan's own pages
+		JPanel thread = new JPanel();
+		thread.setBackground(TEAL_D);
+		thread.setAlignmentX(Component.LEFT_ALIGNMENT);
+		thread.setPreferredSize(new Dimension(Integer.MAX_VALUE, 2));
+		thread.setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
+
 		rsn.setFont(FontManager.getRunescapeFont());
-		rsn.setForeground(Color.WHITE);
-		status.setFont(FontManager.getRunescapeFont());
+		rsn.setForeground(BONE);
+		rsn.setAlignmentX(Component.LEFT_ALIGNMENT);
+		rsn.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+
+		status.setFont(FontManager.getRunescapeSmallFont());
+		status.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		names.add(title);
+		names.add(Box.createVerticalStrut(3));
+		names.add(thread);
 		names.add(rsn);
 		names.add(status);
 		header.add(names, BorderLayout.CENTER);
+		header.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
 		return header;
 	}
 
@@ -887,8 +912,8 @@ class VeritasEventsPanel extends PluginPanel
 		SwingUtilities.invokeLater(() ->
 		{
 			boolean ready = !config.eventUrl().trim().isEmpty();
-			status.setText("● " + (ready ? "Connected" : "No event set"));
-			status.setForeground(ready ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
+			status.setText("\u25CF " + (ready ? "Event live, drops are being sent" : "No event running"));
+			status.setForeground(ready ? ColorScheme.PROGRESS_COMPLETE_COLOR : Color.GRAY);
 		});
 	}
 
@@ -897,6 +922,21 @@ class VeritasEventsPanel extends PluginPanel
 	 * is optional, so a board that answers with nothing still leaves a usable panel.
 	 */
 	/** The clan's own pages, which stay whether or not an event is running. */
+	/**
+	 * The board could not be reached this time.
+	 *
+	 * Deliberately does not touch the pages. They belong to the last answer
+	 * that did arrive and are still the best thing to show.
+	 */
+	void setUnreachable()
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			status.setText("\u25CF Board unreachable");
+			status.setForeground(ColorScheme.PROGRESS_INPROGRESS_COLOR);
+		});
+	}
+
 	void setClan(@Nullable JsonObject clan)
 	{
 		SwingUtilities.invokeLater(() ->
@@ -1666,8 +1706,11 @@ class VeritasEventsPanel extends PluginPanel
 		}
 		synchronized (history)
 		{
+			// What you just killed belongs at the top. Sorted by total value,
+			// the kill you are looking for sat wherever its running total
+			// happened to fall, which is never where you look first.
 			List<Sent> all = new ArrayList<>(history.values());
-			all.sort((a, b) -> Long.compare(b.value, a.value));
+			all.sort((a, b) -> Long.compare(b.at, a.at));
 			return all;
 		}
 	}
@@ -2112,6 +2155,14 @@ class VeritasEventsPanel extends PluginPanel
 		/** Why it was sent, kept or refused, in words the player can act on. */
 		private String reason = "";
 
+		/**
+		 * When this source was last seen, in seconds.
+		 *
+		 * Kept so the list can be ordered by what happened most recently. It
+		 * is written out with the rest, so the order survives a restart.
+		 */
+		private long at;
+
 		Sent(String source, List<int[]> items, long value, int state)
 		{
 			this.source = source;
@@ -2119,6 +2170,7 @@ class VeritasEventsPanel extends PluginPanel
 			this.value = value;
 			this.state = state;
 			this.count = 1;
+			this.at = System.currentTimeMillis() / 1000L;
 		}
 
 		/** A copy that can be merged into without touching what was recorded. */
@@ -2131,6 +2183,7 @@ class VeritasEventsPanel extends PluginPanel
 			}
 			Sent one = new Sent(source, copied, value, state);
 			one.reason = reason;
+			one.at = at;
 			return one;
 		}
 
@@ -2139,6 +2192,7 @@ class VeritasEventsPanel extends PluginPanel
 			count += other.count;
 			value += other.value;
 			state = Math.max(state, other.state);
+			at = Math.max(at, other.at);
 			if (!other.reason.isEmpty())
 			{
 				reason = other.reason;

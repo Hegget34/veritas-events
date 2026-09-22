@@ -553,8 +553,11 @@ public class VeritasEventsPlugin extends Plugin
 			@Override
 			public void onFailure(Call call, IOException e)
 			{
-				log.debug("no clan pages", e);
-				p.setClan(null);
+				// One refresh not arriving is not news that the board has no
+				// pages. Throwing them away emptied the chooser until the next
+				// one came back, which looked like tabs coming and going.
+				log.debug("no clan pages this time, keeping the last ones", e);
+				p.setUnreachable();
 			}
 
 			@Override
@@ -569,8 +572,8 @@ public class VeritasEventsPlugin extends Plugin
 				}
 				catch (Exception e)
 				{
-					log.debug("could not read the clan pages", e);
-					p.setClan(null);
+					log.debug("could not read the clan pages, keeping the last ones", e);
+					p.setUnreachable();
 				}
 			}
 		});

@@ -67,15 +67,21 @@ The sidebar panel is picked from a dropdown:
 
 - **Home** - the clan, and the places it keeps its business: Discord, the clan
   website, DropTracker, TempleOSRS and Wise Old Man. Built in, so it reads
-  properly before any board answers, and the clan board can add to it with
-  `home`
+  properly before any board answers
+- **This week** - the skill and boss of the week, with your own row picked out
+  of the standings and your position written out rather than left to be
+  counted. For the boss it also shows the kills this client has watched since
+  you logged in, kept beside the week's total rather than added to it, because
+  the two overlap by an amount nobody can know. Whatever staff write in the
+  clan board's news box appears underneath
 - **Event** - the event name, whether it is live, how long is left, your team,
   a bar showing how many tiles your team has done, then the standings and who
   has sent the most drops, with your team and your own name picked out
 - **Clan stats** - what the clan has gained, from Wise Old Man. Choose skills
   or bosses, then which one, then the period
-Any pages the board publishes are added to the same chooser under those four,
-so every page is one click rather than two.
+Any pages the board publishes are added to the same chooser under those five,
+so every page is one click rather than two. A refresh that does not arrive
+leaves them alone: they belong to the last answer that did.
 
 - **Loot Tracker** - every drop you receive, whether or not it was sent
   anywhere, grouped by what dropped it or listed kill by kill, collapsed or

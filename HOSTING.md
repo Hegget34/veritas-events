@@ -58,8 +58,14 @@ When a player receives something on your list, the plugin posts it:
 With screenshots switched on it arrives as `multipart/form-data`: the JSON in a
 `payload_json` part and a JPEG in a `file` part. Otherwise it is plain JSON.
 
-Answer any 2xx and the player sees it accepted. Answer anything else and they
-see it refused, and can press **Send again**.
+Answer any 2xx and the player sees it accepted: a teal line in their chat
+box saying it counted, and the drop marked in their Loot Tracker. Answer
+anything else and they get a red line instead, the box is marked refused, and
+**Send again** lights up so they can retry once you are back.
+
+This matters more than it sounds. Players used to have no idea whether a drop
+had reached you until they checked a website later, so a host who went down
+for an hour lost entries nobody knew were missing.
 
 `type` is `LOOT` or `PET`. Pets carry the chat line as `message` rather than
 items, since a pet is not a dropped item.
@@ -111,6 +117,14 @@ An address the plugin picks up from a server at runtime is not allowed, because
 nobody reviewing the code can see where the data ends up. So the board can show
 your event, but it cannot arm anyone's plugin.
 
+### What members see without being told
+
+Once an event of yours is on the clan board, every member's plugin notices it
+by name and says so: a notification when it starts and another when it ends,
+and it appears on their **This week** page. That is about telling people an
+event exists; it does not switch anything on, because the address still has
+to be typed in by hand.
+
 ### Ending it
 
 Ask members to clear **Event URL** when you are done, and stop answering at
@@ -119,9 +133,15 @@ refused.
 
 ## Things worth knowing
 
-**Screenshots** arrive as JPEGs of about 250 KB. They carry the event password
+**Screenshots** are taken of the very next frame the client draws after the
+drop, not of whatever the player happens to be looking at when they get round
+to sending one. They arrive as JPEGs of about 250 KB, with the event password
 and the time in UTC drawn over the game, so a drop can be shown to have
-happened during your event.
+happened during your event and not been dug out of an old folder.
+
+Nothing is asked of the player for this. They do not press anything and they
+cannot forget. The only way it does not happen is if they turn **Include a
+screenshot** off in the settings.
 
 **Set a password** by returning `"password": "YOURWORD"` in your GET. Every
 player's overlay shows it, so nobody has to be told it. Anyone who typed their
