@@ -62,6 +62,9 @@ class VeritasEventsPanel extends PluginPanel
 
 	/** What shows through the gaps between item cells. */
 	private static final Color GRID = new Color(0x3A, 0x3A, 0x48);
+
+	/** The clan's teal, for the drops that reached an event. */
+	private static final Color TEAL = new Color(0x5F, 0xA8, 0xD3);
 	private static final String DROPS = "drops_";
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
@@ -1493,13 +1496,13 @@ class VeritasEventsPanel extends PluginPanel
 			{995, 240000}, {565, 340}, {385, 12}, {2577, 1},
 		}));
 		out.add(example("Reward casket (elite)", FAILED, 1,
-			"The event's board refused the upload (503). Press Send again.", new int[][]{
+			"The event would not take this one. Press Send again.", new int[][]{
 				{11802, 1}, {995, 15000},
 			}));
-		out.add(example("Zulrah", KEPT, 23,
-			"Nothing here is on the event's list of wanted items.", new int[][]{
-				{995, 1120000}, {561, 610}, {565, 480}, {4151, 1}, {11832, 1}, {385, 40},
-			}));
+		// the ordinary drop, with no event running: no bar and nothing said
+		out.add(example("Zulrah", KEPT, 23, "", new int[][]{
+			{995, 1120000}, {561, 610}, {565, 480}, {4151, 1}, {11832, 1}, {385, 40},
+		}));
 		return out;
 	}
 
@@ -1711,10 +1714,16 @@ class VeritasEventsPanel extends PluginPanel
 			box.add(icons, BorderLayout.CENTER);
 		}
 
-		if (entry.state != SENT && !entry.reason.trim().isEmpty())
+		/*
+		 * A colour down the side is not a meaning. Every box that is out of the
+		 * ordinary says in words what became of it, in the same colour as its
+		 * bar, and the ordinary case says nothing at all and has no bar.
+		 */
+		if (!entry.reason.trim().isEmpty())
 		{
 			JLabel why = line(html(entry.reason, CARD_WIDTH),
-				entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR : Color.GRAY);
+				entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR
+					: entry.state == SENT ? TEAL : Color.GRAY);
 			why.setBorder(BorderFactory.createEmptyBorder(4, 1, 1, 1));
 			box.add(why, BorderLayout.SOUTH);
 		}
