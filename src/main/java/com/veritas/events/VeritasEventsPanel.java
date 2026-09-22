@@ -1614,14 +1614,14 @@ class VeritasEventsPanel extends PluginPanel
 
 	private void drawLoot()
 	{
-		int kills = 0;
+		int drops = 0;
 		int sends = 0;
 		long loot = 0;
 		synchronized (history)
 		{
 			for (Sent one : history.values())
 			{
-				kills += one.count;
+				drops += one.count;
 				sends += one.state == SENT ? one.count : 0;
 				loot += one.value;
 			}
@@ -1630,7 +1630,9 @@ class VeritasEventsPanel extends PluginPanel
 		JPanel counts = new JPanel(new GridLayout(1, 3, 4, 0));
 		counts.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		counts.setAlignmentX(Component.LEFT_ALIGNMENT);
-		counts.add(stat("Kills", String.valueOf(kills)));
+		// Not "kills": a barrows chest, a moon, a raid and a clue casket all
+		// land here, and calling the total a kill count misreads most of them.
+		counts.add(stat("Drops", String.valueOf(drops)));
 		counts.add(stat("Sent", String.valueOf(sends)));
 		counts.add(stat("Loot", QuantityFormatter.quantityToStackSize(loot)));
 		activityTab.add(counts);
@@ -1642,7 +1644,7 @@ class VeritasEventsPanel extends PluginPanel
 			: "Nothing has been sent yet, so there is nothing to send again");
 
 		groupButton.setIcon(bars(grouped ? 4 : 2));
-		groupButton.setToolTipText(grouped ? "Show each kill separately" : "Group loot by source");
+		groupButton.setToolTipText(grouped ? "Show each drop separately" : "Group loot by source");
 		collapseButton.setIcon(chevron(collapsed));
 		collapseButton.setToolTipText(collapsed ? "Expand all" : "Collapse all");
 
@@ -1665,7 +1667,7 @@ class VeritasEventsPanel extends PluginPanel
 		if (entries.isEmpty())
 		{
 			activityTab.add(hint(lootTrackerOff.getAsBoolean()
-				? "No drops yet. Kills are tracked either way, but chest and raid "
+				? "No drops yet. Everything is tracked either way, but chest and raid "
 					+ "loot needs RuneLite's own Loot Tracker plugin, which is off."
 				: "No drops yet."));
 			return;
