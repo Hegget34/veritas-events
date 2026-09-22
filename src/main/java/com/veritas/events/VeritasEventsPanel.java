@@ -1648,8 +1648,9 @@ class VeritasEventsPanel extends PluginPanel
 				JLabel icon = new JLabel();
 				icon.setPreferredSize(new Dimension(36, 32));
 				icon.setVerticalAlignment(SwingConstants.CENTER);
-				icon.setToolTipText(itemManager.getItemComposition(item[0]).getName()
-					+ (item[1] > 1 ? " x " + item[1] : ""));
+				// No name in the tooltip: reading an item's composition has to
+				// happen on the client thread, and this is the Swing one.
+				// Asking for it here threw, which took the whole tab with it.
 				itemManager.getImage(item[0], item[1], item[1] > 1).addTo(icon);
 				icons.add(icon);
 			}
