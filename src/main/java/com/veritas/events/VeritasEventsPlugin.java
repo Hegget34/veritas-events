@@ -43,6 +43,7 @@ import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.client.Notifier;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
@@ -162,6 +163,9 @@ public class VeritasEventsPlugin extends Plugin
 	private boolean toldAboutEvent;
 	private boolean askedByHand;
 
+	/** Who the panel currently believes is playing. */
+	private String knownAs = "";
+
 	/**
 	 * Kills of each monster this client has watched, since it started.
 	 *
@@ -219,10 +223,36 @@ public class VeritasEventsPlugin extends Plugin
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged event)
 	{
-		Player local = client.getLocalPlayer();
-		if (event.getGameState() == GameState.LOGGED_IN && local != null && panel != null)
+		if (event.getGameState() != GameState.LOGGED_IN)
 		{
-			panel.setPlayer(Text.sanitize(local.getName()));
+			knownAs = "";
+		}
+	}
+
+	/**
+	 * Keeps the name in the panel in step with who is playing.
+	 *
+	 * It used to be read once, when the client said it had logged in, but the
+	 * local player is very often still null at that moment, and nothing came
+	 * along afterwards to try again. So the panel said Not logged in to
+	 * somebody who plainly was.
+	 *
+	 * A tick is cheap and this does nothing at all unless the name has
+	 * actually changed.
+	 */
+	@Subscribe
+	public void onGameTick(GameTick tick)
+	{
+		Player local = client.getLocalPlayer();
+		if (local == null || panel == null)
+		{
+			return;
+		}
+		String now = Text.sanitize(String.valueOf(local.getName()));
+		if (!now.isEmpty() && !now.equals(knownAs))
+		{
+			knownAs = now;
+			panel.setPlayer(now);
 		}
 	}
 
@@ -556,8 +586,9 @@ public class VeritasEventsPlugin extends Plugin
 				// One refresh not arriving is not news that the board has no
 				// pages. Throwing them away emptied the chooser until the next
 				// one came back, which looked like tabs coming and going.
+				// Keep the pages and say nothing: one refresh not arriving is
+				// not worth a line in the header, and the next one usually does.
 				log.debug("no clan pages this time, keeping the last ones", e);
-				p.setUnreachable();
 			}
 
 			@Override
@@ -573,7 +604,6 @@ public class VeritasEventsPlugin extends Plugin
 				catch (Exception e)
 				{
 					log.debug("could not read the clan pages, keeping the last ones", e);
-					p.setUnreachable();
 				}
 			}
 		});

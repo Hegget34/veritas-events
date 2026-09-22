@@ -922,28 +922,9 @@ class VeritasEventsPanel extends PluginPanel
 		SwingUtilities.invokeLater(() ->
 		{
 			boolean ready = !config.eventUrl().trim().isEmpty();
-			status.setText("\u25CF " + (ready ? "Event live, drops are being sent" : "No event running"));
-			status.setForeground(ready ? ColorScheme.PROGRESS_COMPLETE_COLOR : Color.GRAY);
-		});
-	}
-
-	/**
-	 * Fills the views from whatever the board reported. Every field
-	 * is optional, so a board that answers with nothing still leaves a usable panel.
-	 */
-	/** The clan's own pages, which stay whether or not an event is running. */
-	/**
-	 * The board could not be reached this time.
-	 *
-	 * Deliberately does not touch the pages. They belong to the last answer
-	 * that did arrive and are still the best thing to show.
-	 */
-	void setUnreachable()
-	{
-		SwingUtilities.invokeLater(() ->
-		{
-			status.setText("\u25CF Board unreachable");
-			status.setForeground(ColorScheme.PROGRESS_INPROGRESS_COLOR);
+			status.setText("\u25CF " + (ready ? "Event live" : "No live event"));
+			status.setForeground(ready
+				? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_ERROR_COLOR);
 		});
 	}
 
