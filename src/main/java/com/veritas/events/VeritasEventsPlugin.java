@@ -378,7 +378,8 @@ public class VeritasEventsPlugin extends Plugin
 		}
 		if (eventAddress().isEmpty())
 		{
-			return "No event running. Kept here for your own records.";
+			// The ordinary case, and the ordinary case needs no remark.
+			return " ";
 		}
 		if (total < config.minimumValue())
 		{
@@ -863,8 +864,7 @@ public class VeritasEventsPlugin extends Plugin
 				report(source, icons, value,
 					took ? VeritasEventsPanel.SENT : VeritasEventsPanel.FAILED,
 					took ? "Counted for the event."
-						: "The event's board refused the upload (" + response.code()
-							+ "). Press Send again.");
+						: "The event would not take this one. Press Send again.");
 				response.close();
 			}
 		});

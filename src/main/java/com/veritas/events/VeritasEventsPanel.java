@@ -430,8 +430,6 @@ class VeritasEventsPanel extends PluginPanel
 		homeTab.add(caption("Tracking"));
 		links(homeTab, TRACKING);
 
-		blocks(homeTab, array(lastClan != null ? lastClan : lastDetails, "home"));
-
 		homeTab.revalidate();
 		homeTab.repaint();
 	}
@@ -736,11 +734,20 @@ class VeritasEventsPanel extends PluginPanel
 			weekTab.add(Box.createVerticalStrut(14));
 		}
 
+		// Whatever staff have written in the admin's news box. This is the
+		// page for what is going on, so it is the page their posts belong on.
+		JsonArray news = array(lastClan != null ? lastClan : lastDetails, "home");
+		if (news != null && news.size() > 0)
+		{
+			blocks(weekTab, news);
+			any = true;
+		}
+
 		if (!any)
 		{
 			weekTab.add(title("This week"));
-			weekTab.add(hint("Staff have not set a skill or boss of the week yet. "
-				+ "When they do it shows here, with your own place in it."));
+			weekTab.add(hint("Nothing set for this week yet. When staff pick a "
+				+ "skill or a boss, or post any news, it shows here."));
 		}
 
 		weekTab.revalidate();
@@ -1490,7 +1497,7 @@ class VeritasEventsPanel extends PluginPanel
 				{11802, 1}, {995, 15000},
 			}));
 		out.add(example("Zulrah", KEPT, 23,
-			"No event running. Kept here for your own records.", new int[][]{
+			"Nothing here is on the event's list of wanted items.", new int[][]{
 				{995, 1120000}, {561, 610}, {565, 480}, {4151, 1}, {11832, 1}, {385, 40},
 			}));
 		return out;
@@ -1620,21 +1627,42 @@ class VeritasEventsPanel extends PluginPanel
 			BorderFactory.createMatteBorder(0, 0, 1, 0, TEAL_D),
 			BorderFactory.createEmptyBorder(4, 5, 4, 5)));
 
-		// the monster reads as a heading, not as another line of grey
-		JLabel source = new JLabel(entry.count > 1 ? entry.source + " x " + entry.count : entry.source);
+		/*
+		 * The monster on its own line and the count on the next, beside the
+		 * value. Hung off the end of the name, a long one pushed the count out
+		 * of sight, and the count is the part you came to read.
+		 */
+		JPanel head = new JPanel();
+		head.setLayout(new BoxLayout(head, BoxLayout.Y_AXIS));
+		head.setBackground(ColorScheme.DARK_GRAY_COLOR);
+
+		JLabel source = new JLabel(entry.source);
 		source.setFont(FontManager.getRunescapeBoldFont());
 		source.setForeground(entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR : BONE);
 		source.setToolTipText(entry.source);
-		source.setMinimumSize(new Dimension(20, 1));
-		top.add(source, BorderLayout.CENTER);
+		source.setAlignmentX(Component.LEFT_ALIGNMENT);
+		head.add(source);
+
+		JPanel tally = new JPanel(new BorderLayout(8, 0));
+		tally.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		tally.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JLabel count = new JLabel(entry.count + (entry.count == 1 ? " kill" : " kills"));
+		count.setFont(FontManager.getRunescapeFont());
+		count.setForeground(Color.GRAY);
+		tally.add(count, BorderLayout.WEST);
 
 		if (entry.value > 0)
 		{
 			JLabel value = new JLabel(QuantityFormatter.quantityToStackSize(entry.value) + " gp");
 			value.setFont(FontManager.getRunescapeBoldFont());
 			value.setForeground(entry.value >= config.bigDropValue() ? GOLD : BRASS);
-			top.add(value, BorderLayout.EAST);
+			tally.add(value, BorderLayout.EAST);
 		}
+		tally.setMaximumSize(new Dimension(Integer.MAX_VALUE, tally.getPreferredSize().height));
+		head.add(tally);
+
+		top.add(head, BorderLayout.CENTER);
 		box.add(top, BorderLayout.NORTH);
 
 		if (!entry.items.isEmpty() && !collapsed)
@@ -1658,7 +1686,9 @@ class VeritasEventsPanel extends PluginPanel
 			for (int[] item : entry.items)
 			{
 				JLabel icon = new JLabel();
-				icon.setPreferredSize(new Dimension(36, 32));
+				// taller than the 36 by 32 artwork, so it is not pressed
+				// against the rules above and below it
+				icon.setPreferredSize(new Dimension(38, 38));
 				icon.setVerticalAlignment(SwingConstants.CENTER);
 				icon.setHorizontalAlignment(SwingConstants.CENTER);
 				icon.setOpaque(true);
@@ -1681,7 +1711,7 @@ class VeritasEventsPanel extends PluginPanel
 			box.add(icons, BorderLayout.CENTER);
 		}
 
-		if (entry.state != SENT && !entry.reason.isEmpty())
+		if (entry.state != SENT && !entry.reason.trim().isEmpty())
 		{
 			JLabel why = line(html(entry.reason, CARD_WIDTH),
 				entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR : Color.GRAY);
