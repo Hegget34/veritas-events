@@ -19,6 +19,8 @@ import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -205,9 +207,8 @@ class VeritasEventsPanel extends PluginPanel
 		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		resend.setFont(FontManager.getRunescapeFont());
+		pressable(resend);
 		resend.setEnabled(false);
-		resend.setToolTipText("Send the last thing again, if the board missed it");
 		resend.addActionListener(e -> onResend.run());
 
 		style(subSelect);
@@ -229,8 +230,8 @@ class VeritasEventsPanel extends PluginPanel
 		});
 		for (JButton button : new JButton[]{groupButton, collapseButton})
 		{
+			pressable(button);
 			button.setPreferredSize(new Dimension(28, 24));
-			button.setFocusable(false);
 		}
 		groupButton.addActionListener(e ->
 		{
@@ -581,6 +582,60 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** A hairline, to break the panel into parts. */
+	/**
+	 * A button that behaves like one.
+	 *
+	 * Left to the look and feel these drew flat, with no edge and nothing
+	 * happening under the pointer or the press, so Send again looked broken
+	 * rather than merely disabled.
+	 */
+	private static void pressable(JButton button)
+	{
+		button.setFont(FontManager.getRunescapeFont());
+		button.setForeground(BONE);
+		button.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		button.setFocusPainted(false);
+		button.setFocusable(false);
+		button.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createLineBorder(ColorScheme.BORDER_COLOR),
+			BorderFactory.createEmptyBorder(3, 9, 3, 9)));
+
+		button.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseEntered(MouseEvent event)
+			{
+				if (button.isEnabled())
+				{
+					button.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
+				}
+			}
+
+			@Override
+			public void mouseExited(MouseEvent event)
+			{
+				button.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+			}
+
+			@Override
+			public void mousePressed(MouseEvent event)
+			{
+				if (button.isEnabled())
+				{
+					// a shade darker, so a click is felt as well as seen
+					button.setBackground(ColorScheme.DARKER_GRAY_HOVER_COLOR);
+				}
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent event)
+			{
+				button.setBackground(button.isEnabled() && button.contains(event.getPoint())
+					? ColorScheme.DARK_GRAY_HOVER_COLOR : ColorScheme.DARKER_GRAY_COLOR);
+			}
+		});
+	}
+
 	private static JPanel rule()
 	{
 		JPanel rule = new JPanel();
@@ -1432,6 +1487,11 @@ class VeritasEventsPanel extends PluginPanel
 		counts.add(stat("Loot", QuantityFormatter.quantityToStackSize(loot)));
 		activityTab.add(counts);
 		activityTab.add(Box.createVerticalStrut(8));
+
+		resend.setForeground(resend.isEnabled() ? BONE : Color.GRAY);
+		resend.setToolTipText(resend.isEnabled()
+			? "Send the last thing again, if the board missed it"
+			: "Nothing has been sent yet, so there is nothing to send again");
 
 		groupButton.setIcon(bars(grouped ? 4 : 2));
 		groupButton.setToolTipText(grouped ? "Show each kill separately" : "Group loot by source");
