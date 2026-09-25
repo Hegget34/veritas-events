@@ -71,6 +71,14 @@ class VeritasEventsPanel extends PluginPanel
 	/** Kept across restarts, so a long event is not lost by logging out. */
 	private static final int HISTORY = 500;
 
+	/**
+	 * How many loot boxes to draw at once.
+	 *
+	 * Each one is a panel with its own item pictures, so the cost of a redraw
+	 * is this number rather than the length of the history behind it.
+	 */
+	private static final int MOST_SHOWN = 50;
+
 	/** Items to a row in a loot box, the same as RuneLite's own tracker uses. */
 	private static final int ICON_COLUMNS = 5;
 
@@ -1785,10 +1793,30 @@ class VeritasEventsPanel extends PluginPanel
 				: "No drops yet."));
 			return;
 		}
+		/*
+		 * Only the newest few are drawn.
+		 *
+		 * Listing every drop separately meant a panel and a set of item icons
+		 * for each of up to five hundred of them, which takes long enough on
+		 * the Swing thread that the button looks broken. Nobody scrolls five
+		 * hundred entries in a sidebar, and the totals above still count all
+		 * of them.
+		 */
+		int drawn = 0;
 		for (Sent entry : entries)
 		{
+			if (drawn++ >= MOST_SHOWN)
+			{
+				break;
+			}
 			activityTab.add(box(entry));
 			activityTab.add(Box.createVerticalStrut(6));
+		}
+
+		if (entries.size() > MOST_SHOWN)
+		{
+			activityTab.add(hint("Showing the newest " + MOST_SHOWN + " of "
+				+ entries.size() + ". The totals above count all of them."));
 		}
 	}
 
