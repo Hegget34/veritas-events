@@ -228,6 +228,14 @@ class VeritasEventsPanel extends PluginPanel
 
 	/** Waits for drops to stop arriving before redrawing the loot tab. */
 	private Timer settling;
+
+	/**
+	 * The rows of item pictures currently on screen.
+	 *
+	 * Held so collapsing can hide them instead of throwing every picture away
+	 * and asking for them all again.
+	 */
+	private final List<JPanel> iconRows = new ArrayList<>();
 	private boolean grouped = true;
 	private boolean collapsed;
 	private final Runnable onRefresh;
@@ -286,8 +294,24 @@ class VeritasEventsPanel extends PluginPanel
 		});
 		collapseButton.addActionListener(e ->
 		{
+			/*
+			 * Hide the pictures rather than rebuild the tab.
+			 *
+			 * An item's picture is generated per quantity, since the number is
+			 * drawn onto it, so rebuilding meant discarding a list of images
+			 * and generating them all again. That cost is the same whether two
+			 * boxes are showing or fifty, which is why limiting the list did
+			 * not make this any quicker.
+			 */
 			collapsed = !collapsed;
-			drawActivity();
+			collapseButton.setIcon(chevron(collapsed));
+			collapseButton.setToolTipText(collapsed ? "Expand all" : "Collapse all");
+			for (JPanel row : iconRows)
+			{
+				row.setVisible(!collapsed);
+			}
+			activityTab.revalidate();
+			activityTab.repaint();
 		});
 
 		JPanel top = new JPanel();
@@ -1734,6 +1758,10 @@ class VeritasEventsPanel extends PluginPanel
 
 	private void drawLoot()
 	{
+		// last draw's rows are about to be discarded with the tab itself
+		iconRows.clear();
+		long began = System.currentTimeMillis();
+
 		int drops = 0;
 		int sends = 0;
 		long loot = 0;
@@ -1818,6 +1846,10 @@ class VeritasEventsPanel extends PluginPanel
 			activityTab.add(hint("Showing the newest " + MOST_SHOWN + " of "
 				+ entries.size() + ". The totals above count all of them."));
 		}
+
+		// So a slow tab can be measured rather than guessed at
+		log.debug("loot tab: {} boxes, {} rows of pictures, {} ms",
+			drawn, iconRows.size(), System.currentTimeMillis() - began);
 	}
 
 	/**
@@ -2047,7 +2079,7 @@ class VeritasEventsPanel extends PluginPanel
 		top.add(head, BorderLayout.CENTER);
 		box.add(top, BorderLayout.NORTH);
 
-		if (!entry.items.isEmpty() && !collapsed)
+		if (!entry.items.isEmpty())
 		{
 			/*
 			 * A grid, because a FlowLayout claims everything fits on one line
@@ -2064,6 +2096,8 @@ class VeritasEventsPanel extends PluginPanel
 			JPanel icons = new JPanel(new GridLayout(rows, ICON_COLUMNS, 1, 1));
 			icons.setBackground(GRID);
 			icons.setBorder(BorderFactory.createMatteBorder(1, 1, 1, 1, GRID));
+			icons.setVisible(!collapsed);
+			iconRows.add(icons);
 
 			for (int[] item : entry.items)
 			{
