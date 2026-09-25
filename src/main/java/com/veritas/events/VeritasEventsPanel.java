@@ -1966,6 +1966,12 @@ class VeritasEventsPanel extends PluginPanel
 						Sent.class);
 					if (one != null && one.source != null && one.items != null)
 					{
+						// totals written before a field existed come back with
+						// it null, whatever the initialiser says
+						if (one.reason == null)
+						{
+							one.reason = "";
+						}
 						history.put(one.source, one);
 					}
 				}
@@ -2133,9 +2139,9 @@ class VeritasEventsPanel extends PluginPanel
 		 * ordinary says in words what became of it, in the same colour as its
 		 * bar, and the ordinary case says nothing at all and has no bar.
 		 */
-		if (!entry.reason.trim().isEmpty())
+		if (!entry.why().isEmpty())
 		{
-			JLabel why = line(html(entry.reason, CARD_WIDTH),
+			JLabel why = line(html(entry.why(), CARD_WIDTH),
 				entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR
 					: entry.state == SENT ? TEAL : Color.GRAY);
 			why.setBorder(BorderFactory.createEmptyBorder(4, 1, 1, 1));
@@ -2507,8 +2513,21 @@ class VeritasEventsPanel extends PluginPanel
 		private long value;
 		private int count;
 
-		/** Why it was sent, kept or refused, in words the player can act on. */
+		/**
+		 * Why it was sent, kept or refused, in words the player can act on.
+		 *
+		 * Read through why() and never directly. Gson builds these straight
+		 * from the saved JSON without running field initialisers, so a total
+		 * written before this field existed comes back with it null, and every
+		 * such box threw while drawing and took the whole tab with it.
+		 */
 		private String reason = "";
+
+		/** The reason, or nothing, for records saved before it was stored. */
+		String why()
+		{
+			return reason == null ? "" : reason;
+		}
 
 		/**
 		 * When this source was last seen, in seconds.
@@ -2548,9 +2567,9 @@ class VeritasEventsPanel extends PluginPanel
 			value += other.value;
 			state = Math.max(state, other.state);
 			at = Math.max(at, other.at);
-			if (!other.reason.isEmpty())
+			if (!other.why().isEmpty())
 			{
-				reason = other.reason;
+				reason = other.why();
 			}
 			for (int[] add : other.items)
 			{
