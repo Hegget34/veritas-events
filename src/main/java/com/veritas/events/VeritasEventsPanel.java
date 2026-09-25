@@ -44,11 +44,15 @@ import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicButtonUI;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.config.ConfigManager;
@@ -212,6 +216,10 @@ class VeritasEventsPanel extends PluginPanel
 	private final JComboBox<String> lootSelect = new JComboBox<>();
 	private final JButton groupButton = new JButton();
 	private final JButton collapseButton = new JButton();
+	private final JButton clearButton = new JButton();
+
+	/** Waits for drops to stop arriving before redrawing the loot tab. */
+	private Timer settling;
 	private boolean grouped = true;
 	private boolean collapsed;
 	private final Runnable onRefresh;
@@ -255,11 +263,14 @@ class VeritasEventsPanel extends PluginPanel
 				drawActivity();
 			}
 		});
-		for (JButton button : new JButton[]{groupButton, collapseButton})
+		for (JButton button : new JButton[]{groupButton, collapseButton, clearButton})
 		{
 			pressable(button);
 			button.setPreferredSize(new Dimension(28, 24));
 		}
+		clearButton.setIcon(bin());
+		clearButton.setToolTipText("Clear the tracker. Right click one source to clear just that.");
+		clearButton.addActionListener(e -> confirmForget(null));
 		groupButton.addActionListener(e ->
 		{
 			grouped = !grouped;
@@ -581,6 +592,24 @@ class VeritasEventsPanel extends PluginPanel
 		return new ImageIcon(image);
 	}
 
+	/** A waste bin, for the button that clears the tracker. */
+	private static ImageIcon bin()
+	{
+		BufferedImage image = new BufferedImage(14, 14, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = image.createGraphics();
+		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+			RenderingHints.VALUE_ANTIALIAS_ON);
+		graphics.setColor(Color.LIGHT_GRAY);
+		graphics.fillRect(4, 1, 6, 2);
+		graphics.fillRect(1, 3, 12, 2);
+		graphics.fillRect(3, 5, 8, 8);
+		graphics.setColor(ColorScheme.DARKER_GRAY_COLOR);
+		graphics.fillRect(5, 7, 1, 5);
+		graphics.fillRect(8, 7, 1, 5);
+		graphics.dispose();
+		return new ImageIcon(image);
+	}
+
 	/** A circular arrow for the refresh button. */
 	private static ImageIcon reload()
 	{
@@ -752,8 +781,14 @@ class VeritasEventsPanel extends PluginPanel
 	/** What each item is called and worth, once the plugin has looked it up. */
 	void setFacts(Map<Integer, Facts> known)
 	{
+		// Only worth a redraw if it taught us something. Otherwise every
+		// drawing of the tab caused a second one straight after it.
+		boolean better = known.size() > facts.size();
 		facts = known;
-		SwingUtilities.invokeLater(this::drawActivity);
+		if (better)
+		{
+			SwingUtilities.invokeLater(this::drawActivity);
+		}
 	}
 
 	/** What the plugin has watched you kill since it started. */
@@ -951,6 +986,27 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** Updates the connection line. */
+	/**
+	 * Redraws the loot tab, but not once per drop.
+	 *
+	 * On a busy task drops arrive faster than the panel can be rebuilt, and
+	 * rebuilding it is not cheap. Doing it on every one kept the Swing thread
+	 * busy enough that a click on collapse sat in the queue behind the work
+	 * and felt like the button had stuck.
+	 *
+	 * Anything the player does themselves still redraws at once. This is only
+	 * for things arriving on their own.
+	 */
+	private void redrawSoon()
+	{
+		if (settling == null)
+		{
+			settling = new Timer(400, e -> drawActivity());
+			settling.setRepeats(false);
+		}
+		settling.restart();
+	}
+
 	/** Draws the tabs that read the settings directly. */
 	void redraw()
 	{
@@ -1553,7 +1609,7 @@ class VeritasEventsPanel extends PluginPanel
 		SwingUtilities.invokeLater(() ->
 		{
 			resend.setEnabled(true);
-			drawActivity();
+			redrawSoon();
 		});
 	}
 
@@ -1562,23 +1618,33 @@ class VeritasEventsPanel extends PluginPanel
 		activityTab.removeAll();
 
 		JsonArray wanted = array(lastDetails, "wanted");
-		String open = (String) lootSelect.getSelectedItem();
-		fillingPages = true;
-		lootSelect.removeAllItems();
-		lootSelect.addItem("Your loot");
-		if (wanted != null || !text(lastDetails, "event").isEmpty())
+		boolean goFor = wanted != null || !text(lastDetails, "event").isEmpty();
+
+		/*
+		 * Only rebuilt when its options have actually changed. Tearing the
+		 * chooser down and building it again on every redraw made collapsing
+		 * a long list feel like the panel had stuck.
+		 */
+		if (lootSelect.getItemCount() != (goFor ? 2 : 1))
 		{
-			lootSelect.addItem("Items to go for");
+			String open = (String) lootSelect.getSelectedItem();
+			fillingPages = true;
+			lootSelect.removeAllItems();
+			lootSelect.addItem("Your loot");
+			if (goFor)
+			{
+				lootSelect.addItem("Items to go for");
+			}
+			if (open != null)
+			{
+				lootSelect.setSelectedItem(open);
+			}
+			fillingPages = false;
 		}
-		if (open != null)
-		{
-			lootSelect.setSelectedItem(open);
-		}
-		fillingPages = false;
 
 		// Worth the room only while an event is running; without one there is
 		// nothing to go for and the chooser would just be in the way.
-		boolean event = wanted != null || !text(lastDetails, "event").isEmpty();
+		boolean event = goFor;
 		if (event)
 		{
 			activityTab.add(caption("Show"));
@@ -1680,7 +1746,7 @@ class VeritasEventsPanel extends PluginPanel
 		// land here, and calling the total a kill count misreads most of them.
 		counts.add(stat("Drops", String.valueOf(drops)));
 		counts.add(stat("Sent", String.valueOf(sends)));
-		counts.add(stat("Loot", QuantityFormatter.quantityToStackSize(loot)));
+		counts.add(stat("Value", QuantityFormatter.quantityToStackSize(loot)));
 		activityTab.add(counts);
 		activityTab.add(Box.createVerticalStrut(8));
 
@@ -1699,6 +1765,7 @@ class VeritasEventsPanel extends PluginPanel
 		switches.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		switches.add(groupButton);
 		switches.add(collapseButton);
+		switches.add(clearButton);
 
 		JPanel tools = new JPanel(new BorderLayout(5, 0));
 		tools.setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -1722,6 +1789,76 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			activityTab.add(box(entry));
 			activityTab.add(Box.createVerticalStrut(6));
+		}
+	}
+
+	/**
+	 * Forgets a source, or everything.
+	 *
+	 * Clears what is on screen and what is written to the profile, because
+	 * clearing only the first means it all returns at the next login.
+	 */
+	private void forget(@Nullable String source)
+	{
+		synchronized (history)
+		{
+			if (source == null)
+			{
+				for (String held : new ArrayList<>(history.keySet()))
+				{
+					unsave(held);
+				}
+				history.clear();
+			}
+			else
+			{
+				history.remove(source);
+				unsave(source);
+			}
+		}
+
+		synchronized (sent)
+		{
+			if (source == null)
+			{
+				sent.clear();
+			}
+			else
+			{
+				sent.removeIf((one) -> one.source.equals(source));
+			}
+		}
+
+		resend.setEnabled(false);
+		drawActivity();
+	}
+
+	/** Removes one source's total from the profile it was written to. */
+	private void unsave(String source)
+	{
+		try
+		{
+			configManager.unsetRSProfileConfiguration(
+				VeritasEventsConfig.GROUP, DROPS + source);
+		}
+		catch (Exception e)
+		{
+			log.debug("could not clear the total for {}", source, e);
+		}
+	}
+
+	/** Asks first. Months of tracking is not something to lose to a stray click. */
+	private void confirmForget(@Nullable String source)
+	{
+		int answer = JOptionPane.showConfirmDialog(this,
+			source == null
+				? "Clear every drop and every total from this tracker?"
+				: "Clear everything recorded for " + source + "?",
+			"Veritas", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+		if (answer == JOptionPane.YES_OPTION)
+		{
+			forget(source);
 		}
 	}
 
@@ -1825,6 +1962,13 @@ class VeritasEventsPanel extends PluginPanel
 		JPanel box = new JPanel(new BorderLayout());
 		box.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		box.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		// right click one source to forget just that one
+		JPopupMenu justThis = new JPopupMenu();
+		JMenuItem clearOne = new JMenuItem("Reset " + entry.source);
+		clearOne.addActionListener(e -> confirmForget(entry.source));
+		justThis.add(clearOne);
+		box.setComponentPopupMenu(justThis);
 		box.setBorder(BorderFactory.createCompoundBorder(
 			BorderFactory.createMatteBorder(0, 3, 0, 0,
 				entry.state == FAILED ? ColorScheme.PROGRESS_ERROR_COLOR
