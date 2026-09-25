@@ -61,6 +61,8 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.ProgressBar;
+import net.runelite.client.ui.components.materialtabs.MaterialTab;
+import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.QuantityFormatter;
 
@@ -88,6 +90,7 @@ class VeritasEventsPanel extends PluginPanel
 	/** The clan's teal, for the drops that reached an event. */
 	private static final Color TEAL = new Color(0x5F, 0xA8, 0xD3);
 	private static final String DROPS = "drops_";
+	private static final String OPEN = "open_";
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
 
@@ -112,7 +115,6 @@ class VeritasEventsPanel extends PluginPanel
 	private static final int BUTTON_HEIGHT = 26;
 	private static final float HEADING = 17f;
 	private static final float FIGURE = 20f;
-	private static final String[] VIEWS = {"Home", "This week", "Event", "Clan stats", "Loot Tracker"};
 
 	/** Ordered worst last, so merging a group keeps the worst outcome. */
 	static final int SENT = 0;
@@ -208,12 +210,13 @@ class VeritasEventsPanel extends PluginPanel
 	/** Kills this client has watched, by monster, lower cased. */
 	private Map<String, Integer> killsSeen = new HashMap<>();
 
-	private final JComboBox<String> viewSelect = new JComboBox<>();
-	private final JPanel pageTab = column();
-	private final JPanel pageContent = column();
-	private final JComboBox<String> subSelect = new JComboBox<>();
-	private final JLabel subCaption = caption("Page");
-	private int openPage = -1;
+	/** Three of them, which is not clutter. Everything else folds. */
+	private final MaterialTabGroup tabs;
+	private final JPanel clanTab = column();
+	private final JPanel eventsTab = column();
+
+	/** Which sections are open, so the panel stays how each person leaves it. */
+	private final Map<String, Boolean> openSections = new HashMap<>();
 	private String problem = "";
 	private final JPanel display = new JPanel(new BorderLayout());
 	private JsonObject lastDetails;
@@ -261,15 +264,6 @@ class VeritasEventsPanel extends PluginPanel
 		pressable(resend);
 		resend.setEnabled(false);
 		resend.addActionListener(e -> onResend.run());
-
-		style(subSelect);
-		subSelect.addActionListener(e ->
-		{
-			if (!fillingPages)
-			{
-				drawPageContent();
-			}
-		});
 
 		style(lootSelect);
 		lootSelect.addActionListener(e ->
@@ -324,35 +318,33 @@ class VeritasEventsPanel extends PluginPanel
 
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		drawViews();
-		style(viewSelect);
-		viewSelect.addActionListener(e ->
-		{
-			if (!fillingPages)
-			{
-				showView();
-			}
-		});
+		tabs = new MaterialTabGroup(display);
+
 		JButton refreshButton = new JButton(reload());
 		refreshButton.setToolTipText("Ask the board for the latest");
-		refreshButton.setPreferredSize(new Dimension(30, 28));
+		refreshButton.setPreferredSize(new Dimension(30, 26));
 		refreshButton.setFocusable(false);
 		refreshButton.addActionListener(e -> onRefresh.run());
 
-		JPanel chooser = new JPanel(new BorderLayout(4, 0));
-		chooser.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		chooser.setAlignmentX(Component.LEFT_ALIGNMENT);
-		chooser.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
-		chooser.add(viewSelect, BorderLayout.CENTER);
-		chooser.add(refreshButton, BorderLayout.EAST);
+		tabs.setLayout(new GridLayout(1, 3, 6, 0));
+		tabs.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		tabs.addTab(tab("Clan", clanTab));
+		tabs.addTab(tab("Events", eventsTab));
+		tabs.addTab(tab("Loot", activityTab));
 
-		top.add(caption("View"));
-		top.add(chooser);
-		top.add(Box.createVerticalStrut(12));
+		JPanel bar = new JPanel(new BorderLayout(6, 0));
+		bar.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		bar.setAlignmentX(Component.LEFT_ALIGNMENT);
+		bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
+		bar.add(tabs, BorderLayout.CENTER);
+		bar.add(refreshButton, BorderLayout.EAST);
+
+		top.add(bar);
+		top.add(Box.createVerticalStrut(10));
 
 		add(top, BorderLayout.NORTH);
 		add(display, BorderLayout.CENTER);
-		showView();
+		tabs.select(tabs.getTab(0));
 
 		buildStats();
 		setEvent(null, null);
@@ -527,49 +519,121 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** Shows whichever view is chosen, including the board's own pages. */
-	private void showView()
+	/**
+	 * One of the three tabs, and the page it shows.
+	 *
+	 * The page is put in a panel of its own rather than swapped into a shared
+	 * one, so switching tabs does not rebuild anything.
+	 */
+	private MaterialTab tab(String name, JPanel content)
 	{
-		int chosen = viewSelect.getSelectedIndex();
-		JPanel view;
+		JPanel holder = new JPanel(new BorderLayout());
+		holder.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		holder.add(content, BorderLayout.NORTH);
 
-		if (chosen == 1)
+		MaterialTab made = new MaterialTab(name.toUpperCase(), tabs, holder);
+		made.setFont(FontManager.getRunescapeSmallFont());
+		made.setHorizontalAlignment(SwingConstants.CENTER);
+		made.setOnSelectEvent(() ->
 		{
-			view = weekTab;
-			drawWeek();
-		}
-		else if (chosen == 2)
-		{
-			view = eventTab;
-		}
-		else if (chosen == 3)
-		{
-			view = statsTab;
-			if (!statsAsked)
+			// the clan figures are fetched the first time they are looked at
+			if (content == clanTab && !statsAsked)
 			{
 				askGained(metric);
 			}
-		}
-		else if (chosen == 4)
-		{
-			view = activityTab;
-		}
-		else if (chosen >= VIEWS.length)
-		{
-			drawBoardPage(chosen - VIEWS.length);
-			view = pageTab;
-		}
-		else
-		{
-			view = homeTab;
-		}
-
-		display.removeAll();
-		display.add(view, BorderLayout.NORTH);
-		display.revalidate();
-		display.repaint();
+			return true;
+		});
+		return made;
 	}
 
-	/** The two choosers, told apart by a caption and a gold edge. */
+	/**
+	 * A heading you can click, and whatever sits under it.
+	 *
+	 * This is what replaced the menu. Eight destinations in a sidebar this
+	 * narrow is clutter however it is dressed up, so the small ones are
+	 * stacked on one page and folded away when they are not wanted.
+	 */
+	private JPanel section(String key, String name, JComponent body, boolean openByDefault)
+	{
+		boolean open = openSections.computeIfAbsent(key, k -> remembered(k, openByDefault));
+		body.setVisible(open);
+		body.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JLabel mark = new JLabel(chevron(open));
+		JLabel label = new JLabel(name.toUpperCase());
+		label.setFont(FontManager.getRunescapeBoldFont());
+		label.setForeground(BRASS);
+
+		JPanel head = new JPanel(new BorderLayout(6, 0));
+		head.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		head.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 0, 2, 0, TEAL_D),
+			BorderFactory.createEmptyBorder(6, 8, 5, 6)));
+		head.add(label, BorderLayout.CENTER);
+		head.add(mark, BorderLayout.EAST);
+		head.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+		head.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mousePressed(MouseEvent event)
+			{
+				boolean now = !body.isVisible();
+				body.setVisible(now);
+				mark.setIcon(chevron(now));
+				openSections.put(key, now);
+				remember(key, now);
+				head.getParent().revalidate();
+				head.getParent().repaint();
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent event)
+			{
+				head.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent event)
+			{
+				head.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+			}
+		});
+
+		JPanel whole = column();
+		whole.setAlignmentX(Component.LEFT_ALIGNMENT);
+		whole.add(head);
+		whole.add(body);
+		whole.add(Box.createVerticalStrut(9));
+		return whole;
+	}
+
+	/** Whether a section was left open, from the profile it was written to. */
+	private boolean remembered(String key, boolean fallback)
+	{
+		try
+		{
+			Boolean kept = configManager.getConfiguration(
+				VeritasEventsConfig.GROUP, OPEN + key, Boolean.class);
+			return kept == null ? fallback : kept;
+		}
+		catch (Exception e)
+		{
+			return fallback;
+		}
+	}
+
+	private void remember(String key, boolean open)
+	{
+		try
+		{
+			configManager.setConfiguration(VeritasEventsConfig.GROUP, OPEN + key, open);
+		}
+		catch (Exception e)
+		{
+			log.debug("could not remember the {} section", key, e);
+		}
+	}
+
 	private static void style(JComboBox<String> combo)
 	{
 		combo.setFont(FontManager.getRunescapeFont());
@@ -1067,7 +1131,7 @@ class VeritasEventsPanel extends PluginPanel
 			lastClan = clan;
 			drawHome();
 			drawWeek();
-			drawViews();
+			drawTabs();
 		});
 	}
 
@@ -1079,7 +1143,7 @@ class VeritasEventsPanel extends PluginPanel
 			lastDetails = details;
 			drawHome();
 			drawEvent(details);
-			drawViews();
+			drawTabs();
 			drawActivity();
 		});
 	}
@@ -1378,103 +1442,73 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** Lists the fixed views, then a view per page the board publishes. */
-	private void drawViews()
+	/**
+	 * Lays the two stacked tabs out again.
+	 *
+	 * The bodies are the same panels their own draw methods write into, so
+	 * this only arranges them; it does not rebuild their contents. Pages the
+	 * board publishes become sections here, which is why a new one needs no
+	 * code: Schedule goes with the events, everything else with the clan.
+	 */
+	private void drawTabs()
 	{
-		String open = (String) viewSelect.getSelectedItem();
+		clanTab.removeAll();
+		eventsTab.removeAll();
 
-		fillingPages = true;
-		viewSelect.removeAllItems();
-		for (String view : VIEWS)
-		{
-			viewSelect.addItem(view);
-		}
+		clanTab.add(section("week", "This week", weekTab, true));
+
+		eventsTab.add(section("event", "Live event", eventTab, true));
+
 		for (JsonObject page : pages())
 		{
-			viewSelect.addItem(text(page, "name"));
-		}
-		if (open != null)
-		{
-			viewSelect.setSelectedItem(open);
-		}
-		fillingPages = false;
+			String name = text(page, "name");
+			JPanel body = column();
+			body.setBorder(BorderFactory.createEmptyBorder(6, 2, 2, 2));
+			boardPage(body, page);
 
-		showView();
+			boolean events = name.equalsIgnoreCase("Schedule");
+			(events ? eventsTab : clanTab).add(
+				section("page-" + name.toLowerCase(), name, body, events));
+		}
+
+		clanTab.add(section("stats", "Clan stats", statsTab, false));
+		clanTab.add(section("links", "Links", homeTab, false));
+
+		clanTab.revalidate();
+		clanTab.repaint();
+		eventsTab.revalidate();
+		eventsTab.repaint();
+	}
+
+	/**
+	 * One page the board published, blocks and all.
+	 *
+	 * A page holding pages of its own becomes sections within this one rather
+	 * than a second menu, which is what the old Page chooser was for.
+	 */
+	private void boardPage(JPanel into, JsonObject page)
+	{
+		JsonArray within = array(page, "pages");
+		if (within == null || within.size() == 0)
+		{
+			blocks(into, array(page, "blocks"));
+			return;
+		}
+
+		for (JsonElement element : within)
+		{
+			JsonObject inner = element.getAsJsonObject();
+			String name = text(inner, "name");
+			JPanel body = column();
+			blocks(body, array(inner, "blocks"));
+			into.add(section("sub-" + name.toLowerCase(), name, body, false));
+		}
 	}
 
 	/**
 	 * One of the board's pages. A page may carry pages of its own, in which case
 	 * a second chooser appears for them, so related pages can be grouped without
 	 * the top chooser growing forever.
-	 */
-	private void drawBoardPage(int index)
-	{
-		openPage = index;
-		pageTab.removeAll();
-
-		JsonObject page = pageAt(index);
-		JsonArray within = array(page, "pages");
-		if (within != null)
-		{
-			String open = (String) subSelect.getSelectedItem();
-			fillingPages = true;
-			subSelect.removeAllItems();
-			for (JsonElement element : within)
-			{
-				subSelect.addItem(text(element.getAsJsonObject(), "name"));
-			}
-			if (open != null)
-			{
-				subSelect.setSelectedItem(open);
-			}
-			fillingPages = false;
-
-			pageTab.add(subCaption);
-			pageTab.add(subSelect);
-			pageTab.add(Box.createVerticalStrut(12));
-		}
-
-		pageTab.add(pageContent);
-		drawPageContent();
-
-		pageTab.revalidate();
-		pageTab.repaint();
-	}
-
-	private void drawPageContent()
-	{
-		pageContent.removeAll();
-
-		JsonObject page = pageAt(openPage);
-		if (page == null)
-		{
-			pageContent.add(hint(!problem.isEmpty() ? problem
-				: "This page is no longer being published."));
-		}
-		else
-		{
-			JsonArray within = array(page, "pages");
-			if (within == null)
-			{
-				blocks(pageContent, array(page, "blocks"));
-			}
-			else
-			{
-				int chosen = Math.max(0, subSelect.getSelectedIndex());
-				if (chosen < within.size())
-				{
-					blocks(pageContent, array(within.get(chosen).getAsJsonObject(), "blocks"));
-				}
-			}
-		}
-
-		pageContent.revalidate();
-		pageContent.repaint();
-	}
-
-	/**
-	 * Every published page: the clan's own first, then whatever the running
-	 * event adds. Clan pages are there with no event set, which is the point of
-	 * keeping the two addresses apart.
 	 */
 	private List<JsonObject> pages()
 	{
