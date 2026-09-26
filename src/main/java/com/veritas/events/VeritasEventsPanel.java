@@ -100,8 +100,11 @@ class VeritasEventsPanel extends PluginPanel
 	/** What the chosen tab sits on: teal, dulled enough to read text over. */
 	private static final Color TEAL_SEAT = new Color(0x1E, 0x3A, 0x4C);
 
-	/** The rail down a section's contents: the heading's bar, quietened. */
-	private static final Color RAIL = new Color(0x24, 0x44, 0x5C);
+	/** The line around a section, so it closes on all four sides. */
+	private static final Color EDGE = new Color(0x2B, 0x2B, 0x3C);
+
+	/** What a section's heading sits on, a shade above its contents. */
+	private static final Color HEAD_SEAT = new Color(0x1B, 0x1B, 0x2A);
 
 	/**
 	 * How wide wrapped text can be.
@@ -542,7 +545,9 @@ class VeritasEventsPanel extends PluginPanel
 		holder.add(content, BorderLayout.NORTH);
 		tabPages.add(holder);
 
-		JLabel label = new JLabel(spaced(name), SwingConstants.CENTER);
+		// Not spaced out: a third of the bar is about fifty pixels and the
+		// gaps pushed EVENTS past it, which is worse than plain capitals.
+		JLabel label = new JLabel(name.toUpperCase(), SwingConstants.CENTER);
 		label.setFont(FontManager.getRunescapeBoldFont());
 
 		JPanel made = new JPanel(new BorderLayout());
@@ -605,7 +610,7 @@ class VeritasEventsPanel extends PluginPanel
 			one.setBorder(BorderFactory.createCompoundBorder(
 				BorderFactory.createMatteBorder(0, 0, 3, 0,
 					on ? BRASS : ColorScheme.DARKER_GRAY_COLOR),
-				BorderFactory.createEmptyBorder(9, 2, 6, 2)));
+				BorderFactory.createEmptyBorder(9, 1, 6, 1)));
 			label.setForeground(on ? BRASS : Color.GRAY);
 		}
 
@@ -642,9 +647,11 @@ class VeritasEventsPanel extends PluginPanel
 		 * next. The rail draws the eye down the whole of one section and
 		 * stops at its foot, which is the boundary that was missing.
 		 */
-		body.setBorder(BorderFactory.createCompoundBorder(
-			BorderFactory.createMatteBorder(0, 3, 0, 0, RAIL),
-			BorderFactory.createEmptyBorder(4, 5, 7, 0)));
+		// The page's own colour, not the card's: the rows inside a section
+		// are already the darker shade, and painting the card to match would
+		// swallow them.
+		body.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		body.setBorder(BorderFactory.createEmptyBorder(6, 7, 8, 6));
 
 		JLabel mark = new JLabel(chevron(open));
 		JLabel label = new JLabel(spaced(name));
@@ -654,12 +661,12 @@ class VeritasEventsPanel extends PluginPanel
 		// a bar down the left edge, so a heading reads as the lid of
 		// something rather than as one more row in a list
 		JPanel head = new JPanel(new BorderLayout(6, 0));
-		head.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		head.setBackground(HEAD_SEAT);
 		head.setAlignmentX(Component.LEFT_ALIGNMENT);
-		head.setMaximumSize(new Dimension(Integer.MAX_VALUE, 27));
+		head.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
 		head.setBorder(BorderFactory.createCompoundBorder(
 			BorderFactory.createMatteBorder(0, 3, 1, 0, TEAL_D),
-			BorderFactory.createEmptyBorder(5, 7, 4, 6)));
+			BorderFactory.createEmptyBorder(6, 7, 5, 6)));
 		head.add(label, BorderLayout.CENTER);
 		head.add(mark, BorderLayout.EAST);
 		head.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
@@ -698,11 +705,27 @@ class VeritasEventsPanel extends PluginPanel
 		 * about where the left edge is, and everything under the heading
 		 * slides inward. That was the drift to the right, not a margin.
 		 */
+		/*
+		 * A card, not a rail.
+		 *
+		 * A line down the left said where a section began and nothing said
+		 * where it ended, so an open one still read as a wall of text running
+		 * into the next heading. A box closes on all four sides: its contents
+		 * are plainly inside it, and the gap between cards is plainly outside
+		 * any of them.
+		 */
+		JPanel card = new JPanel();
+		card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+		card.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		card.setBorder(BorderFactory.createLineBorder(EDGE));
+		card.setAlignmentX(Component.LEFT_ALIGNMENT);
+		card.add(head);
+		card.add(body);
+
 		JPanel whole = column();
 		whole.setAlignmentX(Component.LEFT_ALIGNMENT);
-		whole.add(head);
-		whole.add(body);
-		whole.add(Box.createVerticalStrut(14));
+		whole.add(card);
+		whole.add(Box.createVerticalStrut(11));
 		return whole;
 	}
 
