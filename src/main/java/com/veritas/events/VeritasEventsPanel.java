@@ -48,6 +48,8 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
 import javax.swing.JComponent;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
@@ -90,6 +92,9 @@ class VeritasEventsPanel extends PluginPanel
 	private static final String DROPS = "drops_";
 	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
+
+	/** What the entry under the pointer sits on: teal, dulled to read over. */
+	private static final Color TEAL_SEAT = new Color(0x1E, 0x3A, 0x4C);
 
 	/** The clan site's own palette, so the two look like one thing. */
 	private static final Color BRASS = new Color(0xE0, 0xC0, 0x90);
@@ -494,9 +499,6 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		homeTab.removeAll();
 
-		homeTab.add(line("Old School RuneScape clan", Color.GRAY));
-		homeTab.add(Box.createVerticalStrut(12));
-
 		homeTab.add(caption("Community"));
 		links(homeTab, COMMUNITY);
 		homeTab.add(Box.createVerticalStrut(12));
@@ -581,6 +583,26 @@ class VeritasEventsPanel extends PluginPanel
 		combo.setBorder(BorderFactory.createCompoundBorder(
 			BorderFactory.createMatteBorder(0, 2, 1, 0, GOLD),
 			BorderFactory.createEmptyBorder(3, 6, 3, 4)));
+
+		/*
+		 * The list it drops is the one thing in here still drawn by Swing's
+		 * own look: a pale highlight, cramped rows and a system font, under a
+		 * panel that is dark and brass everywhere else.
+		 */
+		combo.setRenderer(new DefaultListCellRenderer()
+		{
+			@Override
+			public Component getListCellRendererComponent(JList<?> list, Object value,
+				int index, boolean chosen, boolean focused)
+			{
+				super.getListCellRendererComponent(list, value, index, chosen, focused);
+				setFont(FontManager.getRunescapeFont());
+				setBorder(BorderFactory.createEmptyBorder(5, 9, 5, 9));
+				setBackground(chosen ? TEAL_SEAT : ColorScheme.DARKER_GRAY_COLOR);
+				setForeground(chosen ? BRASS : BONE);
+				return this;
+			}
+		});
 	}
 
 	/**
