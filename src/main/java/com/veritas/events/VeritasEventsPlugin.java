@@ -824,6 +824,24 @@ public class VeritasEventsPlugin extends Plugin
 		for (JsonElement element : details.getAsJsonArray("wanted"))
 		{
 			JsonObject item = element.getAsJsonObject();
+
+			/*
+			 * A tile is often a group rather than one item: any Virtus piece,
+			 * any Dagannoth ring. Such a tile carries a "match" list of the
+			 * real item names, and "name" is only what the player is shown.
+			 * Without this the plugin would hunt for an item called "Any
+			 * Virtus piece", find nothing, and silently never send any of
+			 * the three that count.
+			 */
+			if (item.has("match") && item.get("match").isJsonArray())
+			{
+				for (JsonElement one : item.getAsJsonArray("match"))
+				{
+					names.add(one.getAsString().toLowerCase());
+				}
+				continue;
+			}
+
 			if (item.has("name"))
 			{
 				names.add(item.get("name").getAsString().toLowerCase());

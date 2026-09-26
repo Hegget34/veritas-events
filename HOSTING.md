@@ -34,6 +34,27 @@ and it does two jobs:
 optional. Every field is optional - answer `{}` and the plugin still works, it
 just shows less.
 
+### When a tile is a group
+
+Plenty of tiles are not one item. Any Virtus piece, any Dagannoth ring, any
+Moon set piece. Give such a tile a `match` list and the plugin counts any of
+them, while `name` stays the thing the player is shown:
+
+```json
+{
+  "name": "Any Virtus piece",
+  "note": "1/1536 to 1/3264",
+  "match": ["Virtus mask", "Virtus robe top", "Virtus robe bottom"]
+}
+```
+
+Without `match` the plugin would look for an item literally called "Any
+Virtus piece", never find one, and quietly send none of the three.
+
+Names are matched exactly, ignoring capitals, against the name the game gives
+the item. A typo means that item silently never counts, so it is worth
+checking the spellings before an event rather than during one.
+
 An item can also carry `"pending": true` while you are deciding, or
 `"found": true` once it counts.
 
