@@ -100,6 +100,9 @@ class VeritasEventsPanel extends PluginPanel
 	/** What the chosen tab sits on: teal, dulled enough to read text over. */
 	private static final Color TEAL_SEAT = new Color(0x1E, 0x3A, 0x4C);
 
+	/** The rail down a section's contents: the heading's bar, quietened. */
+	private static final Color RAIL = new Color(0x24, 0x44, 0x5C);
+
 	/**
 	 * How wide wrapped text can be.
 	 *
@@ -342,7 +345,7 @@ class VeritasEventsPanel extends PluginPanel
 		JPanel bar = new JPanel(new BorderLayout(6, 0));
 		bar.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		bar.setAlignmentX(Component.LEFT_ALIGNMENT);
-		bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+		bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
 		bar.add(row, BorderLayout.CENTER);
 		bar.add(refreshButton, BorderLayout.EAST);
 
@@ -540,7 +543,7 @@ class VeritasEventsPanel extends PluginPanel
 		tabPages.add(holder);
 
 		JLabel label = new JLabel(spaced(name), SwingConstants.CENTER);
-		label.setFont(FontManager.getRunescapeSmallFont());
+		label.setFont(FontManager.getRunescapeBoldFont());
 
 		JPanel made = new JPanel(new BorderLayout());
 		made.add(label, BorderLayout.CENTER);
@@ -597,10 +600,12 @@ class VeritasEventsPanel extends PluginPanel
 				.getLayoutComponent(BorderLayout.CENTER);
 
 			one.setBackground(on ? TEAL_SEAT : ColorScheme.DARKER_GRAY_COLOR);
+			// taller, not wider: the row is three equal columns whatever
+			// happens, so height is the only room there is to give them
 			one.setBorder(BorderFactory.createCompoundBorder(
-				BorderFactory.createMatteBorder(0, 0, 2, 0,
+				BorderFactory.createMatteBorder(0, 0, 3, 0,
 					on ? BRASS : ColorScheme.DARKER_GRAY_COLOR),
-				BorderFactory.createEmptyBorder(5, 2, 3, 2)));
+				BorderFactory.createEmptyBorder(9, 2, 6, 2)));
 			label.setForeground(on ? BRASS : Color.GRAY);
 		}
 
@@ -628,6 +633,18 @@ class VeritasEventsPanel extends PluginPanel
 		boolean open = openSections.computeIfAbsent(key, k -> remembered(k, openByDefault));
 		body.setVisible(open);
 		body.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		/*
+		 * The heading's bar carries on down the contents.
+		 *
+		 * Without it a section ended wherever its last line happened to fall
+		 * and the next heading followed straight on, so one ran into the
+		 * next. The rail draws the eye down the whole of one section and
+		 * stops at its foot, which is the boundary that was missing.
+		 */
+		body.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 3, 0, 0, RAIL),
+			BorderFactory.createEmptyBorder(4, 5, 7, 0)));
 
 		JLabel mark = new JLabel(chevron(open));
 		JLabel label = new JLabel(spaced(name));
@@ -685,7 +702,7 @@ class VeritasEventsPanel extends PluginPanel
 		whole.setAlignmentX(Component.LEFT_ALIGNMENT);
 		whole.add(head);
 		whole.add(body);
-		whole.add(Box.createVerticalStrut(9));
+		whole.add(Box.createVerticalStrut(14));
 		return whole;
 	}
 
@@ -2358,20 +2375,19 @@ class VeritasEventsPanel extends PluginPanel
 		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 		panel.setBorder(BorderFactory.createEmptyBorder(4, 0, 7, 0));
 
+		/*
+		 * Quieter than it was, and quieter than a section heading.
+		 *
+		 * These sit inside sections now, and drawn at the same weight with a
+		 * rule of their own they read as headings in their own right, so one
+		 * section appeared to run into the next. Smaller, and no rule.
+		 */
 		JLabel label = new JLabel(html(text, TEXT_WIDTH));
-		label.setFont(FontManager.getRunescapeBoldFont().deriveFont(HEADING));
-		label.setForeground(BRASS);
+		label.setFont(FontManager.getRunescapeBoldFont());
+		label.setForeground(BONE);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		JPanel underline = new JPanel();
-		underline.setBackground(TEAL_D);
-		underline.setAlignmentX(Component.LEFT_ALIGNMENT);
-		underline.setPreferredSize(new Dimension(Integer.MAX_VALUE, 2));
-		underline.setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
-
 		panel.add(label);
-		panel.add(Box.createVerticalStrut(4));
-		panel.add(underline);
 		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
 		return panel;
 	}
