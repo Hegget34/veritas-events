@@ -631,22 +631,23 @@ class VeritasEventsPanel extends PluginPanel
 			setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 			setBackground(ColorScheme.DARK_GRAY_COLOR);
 			setAlignmentX(Component.LEFT_ALIGNMENT);
-			setBorder(BorderFactory.createEmptyBorder(2, 0, 5, 0));
+			setBorder(BorderFactory.createEmptyBorder(4, 0, 7, 0));
 
-			label.setFont(FontManager.getRunescapeSmallFont());
+			// Exactly what a title uses. There is one heading in this panel
+			// and this is it; a smaller one for labels above controls only
+			// made half of them look like an afterthought.
+			label.setFont(FontManager.getRunescapeBoldFont());
 			label.setForeground(BRASS);
 			label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-			// the same rule a title carries, thinner, because this labels one
-			// control rather than heading a whole list
 			JPanel underline = new JPanel();
 			underline.setBackground(TEAL_D);
 			underline.setAlignmentX(Component.LEFT_ALIGNMENT);
-			underline.setPreferredSize(new Dimension(Integer.MAX_VALUE, 1));
-			underline.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+			underline.setPreferredSize(new Dimension(Integer.MAX_VALUE, 2));
+			underline.setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
 
 			add(label);
-			add(Box.createVerticalStrut(3));
+			add(Box.createVerticalStrut(4));
 			add(underline);
 			set(text);
 		}
