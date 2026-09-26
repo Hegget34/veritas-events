@@ -654,9 +654,24 @@ class VeritasEventsPanel extends PluginPanel
 
 		void set(String text)
 		{
-			label.setText(spaced(text));
+			label.setText(fitted(text));
 			setMaximumSize(new Dimension(Integer.MAX_VALUE, getPreferredSize().height));
 		}
+	}
+
+	/**
+	 * A heading, spaced out if there is room and plain capitals if not.
+	 *
+	 * Spacing adds a gap between every letter, which on a long heading is
+	 * enough to push it past the panel and onto a second line. Measured in
+	 * the font it will be drawn in rather than guessed at.
+	 */
+	private static String fitted(String text)
+	{
+		String wide = spaced(text);
+		FontMetrics metrics = new JLabel()
+			.getFontMetrics(FontManager.getRunescapeBoldFont());
+		return metrics.stringWidth(wide) <= TEXT_WIDTH ? wide : text.toUpperCase();
 	}
 
 	/** A word in spaced capitals, which is how every caption in here is set. */
@@ -665,7 +680,9 @@ class VeritasEventsPanel extends PluginPanel
 		StringBuilder out = new StringBuilder();
 		for (char letter : text.toUpperCase().toCharArray())
 		{
-			out.append(out.length() == 0 ? "" : "\u2009").append(letter);
+			// narrow NO-BREAK space: looks like a thin one, but HTML cannot
+			// wrap at it, so a heading never splits in the middle of a word
+			out.append(out.length() == 0 ? "" : "\u202F").append(letter);
 		}
 		return out.toString();
 	}
@@ -2312,7 +2329,7 @@ class VeritasEventsPanel extends PluginPanel
 		 * heading over a list looked like they came from different plugins.
 		 * One family now, and a title is simply the louder member of it.
 		 */
-		JLabel label = new JLabel(html(spaced(text), TEXT_WIDTH));
+		JLabel label = new JLabel(html(fitted(text), TEXT_WIDTH));
 		label.setFont(FontManager.getRunescapeBoldFont());
 		label.setForeground(BRASS);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
