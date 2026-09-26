@@ -114,7 +114,7 @@ class VeritasEventsPanel extends PluginPanel
 	 * 170. Anything wider is drawn off the right edge, which is what was
 	 * happening to every hint in here.
 	 */
-	private static final int TEXT_WIDTH = PluginPanel.PANEL_WIDTH - 55;
+	private static final int TEXT_WIDTH = PluginPanel.PANEL_WIDTH - 72;
 
 	/** The same, inside a card, which has an accent and padding of its own. */
 	private static final int CARD_WIDTH = TEXT_WIDTH - 20;
