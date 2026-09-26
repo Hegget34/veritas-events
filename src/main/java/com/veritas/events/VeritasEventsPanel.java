@@ -61,8 +61,6 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.ProgressBar;
-import net.runelite.client.ui.components.materialtabs.MaterialTab;
-import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.QuantityFormatter;
 
@@ -98,6 +96,9 @@ class VeritasEventsPanel extends PluginPanel
 	private static final Color BRASS = new Color(0xE0, 0xC0, 0x90);
 	private static final Color BONE = new Color(0xF0, 0xF0, 0xE0);
 	private static final Color TEAL_D = new Color(0x2D, 0x6C, 0x92);
+
+	/** What the chosen tab sits on: teal, dulled enough to read text over. */
+	private static final Color TEAL_SEAT = new Color(0x1E, 0x3A, 0x4C);
 
 	/**
 	 * How wide wrapped text can be.
@@ -210,8 +211,16 @@ class VeritasEventsPanel extends PluginPanel
 	/** Kills this client has watched, by monster, lower cased. */
 	private Map<String, Integer> killsSeen = new HashMap<>();
 
-	/** Three of them, which is not clutter. Everything else folds. */
-	private final MaterialTabGroup tabs;
+	/**
+	 * Three of them, which is not clutter. Everything else folds.
+	 *
+	 * Written by hand rather than with RuneLite's own tab component, which
+	 * chooses its own colours when a tab is picked and fights anything set
+	 * over the top of them.
+	 */
+	private final List<JPanel> tabs = new ArrayList<>();
+	private final List<JPanel> tabPages = new ArrayList<>();
+	private int openTab;
 	private final JPanel clanTab = column();
 	private final JPanel eventsTab = column();
 
@@ -318,25 +327,23 @@ class VeritasEventsPanel extends PluginPanel
 
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-		tabs = new MaterialTabGroup(display);
-
 		JButton refreshButton = new JButton(reload());
 		refreshButton.setToolTipText("Ask the board for the latest");
 		refreshButton.setPreferredSize(new Dimension(30, 26));
 		refreshButton.setFocusable(false);
 		refreshButton.addActionListener(e -> onRefresh.run());
 
-		tabs.setLayout(new GridLayout(1, 3, 6, 0));
-		tabs.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		tabs.addTab(tab("Clan", clanTab));
-		tabs.addTab(tab("Events", eventsTab));
-		tabs.addTab(tab("Loot", activityTab));
+		JPanel row = new JPanel(new GridLayout(1, 3, 4, 0));
+		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		row.add(tab("Clan", clanTab));
+		row.add(tab("Events", eventsTab));
+		row.add(tab("Loot", activityTab));
 
 		JPanel bar = new JPanel(new BorderLayout(6, 0));
 		bar.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		bar.setAlignmentX(Component.LEFT_ALIGNMENT);
-		bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
-		bar.add(tabs, BorderLayout.CENTER);
+		bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+		bar.add(row, BorderLayout.CENTER);
 		bar.add(refreshButton, BorderLayout.EAST);
 
 		top.add(bar);
@@ -344,7 +351,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		add(top, BorderLayout.NORTH);
 		add(display, BorderLayout.CENTER);
-		tabs.select(tabs.getTab(0));
+		showTab(0);
 
 		buildStats();
 		setEvent(null, null);
@@ -522,28 +529,91 @@ class VeritasEventsPanel extends PluginPanel
 	/**
 	 * One of the three tabs, and the page it shows.
 	 *
-	 * The page is put in a panel of its own rather than swapped into a shared
-	 * one, so switching tabs does not rebuild anything.
+	 * The page is kept in a panel of its own rather than swapped into a
+	 * shared one, so moving between tabs rebuilds nothing.
 	 */
-	private MaterialTab tab(String name, JPanel content)
+	private JPanel tab(String name, JPanel content)
 	{
 		JPanel holder = new JPanel(new BorderLayout());
 		holder.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		holder.add(content, BorderLayout.NORTH);
+		tabPages.add(holder);
 
-		MaterialTab made = new MaterialTab(name.toUpperCase(), tabs, holder);
-		made.setFont(FontManager.getRunescapeSmallFont());
-		made.setHorizontalAlignment(SwingConstants.CENTER);
-		made.setOnSelectEvent(() ->
+		JLabel label = new JLabel(spaced(name), SwingConstants.CENTER);
+		label.setFont(FontManager.getRunescapeSmallFont());
+
+		JPanel made = new JPanel(new BorderLayout());
+		made.add(label, BorderLayout.CENTER);
+		made.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+
+		final int mine = tabs.size();
+		made.addMouseListener(new MouseAdapter()
 		{
-			// the clan figures are fetched the first time they are looked at
-			if (content == clanTab && !statsAsked)
+			@Override
+			public void mousePressed(MouseEvent event)
 			{
-				askGained(metric);
+				showTab(mine);
 			}
-			return true;
+
+			@Override
+			public void mouseEntered(MouseEvent event)
+			{
+				if (mine != openTab)
+				{
+					label.setForeground(BONE);
+				}
+			}
+
+			@Override
+			public void mouseExited(MouseEvent event)
+			{
+				if (mine != openTab)
+				{
+					label.setForeground(Color.GRAY);
+				}
+			}
 		});
+
+		tabs.add(made);
 		return made;
+	}
+
+	/**
+	 * Opens one tab and dresses the three of them.
+	 *
+	 * The chosen one sits on a teal seat with a brass rule under it and its
+	 * name in brass; the others are flat and grey. Colour and weight both
+	 * carry it, so it reads at a glance without being loud.
+	 */
+	private void showTab(int which)
+	{
+		openTab = which;
+
+		for (int n = 0; n < tabs.size(); n++)
+		{
+			JPanel one = tabs.get(n);
+			boolean on = n == which;
+			JLabel label = (JLabel) ((BorderLayout) one.getLayout())
+				.getLayoutComponent(BorderLayout.CENTER);
+
+			one.setBackground(on ? TEAL_SEAT : ColorScheme.DARKER_GRAY_COLOR);
+			one.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createMatteBorder(0, 0, 2, 0,
+					on ? BRASS : ColorScheme.DARKER_GRAY_COLOR),
+				BorderFactory.createEmptyBorder(5, 2, 3, 2)));
+			label.setForeground(on ? BRASS : Color.GRAY);
+		}
+
+		// the clan figures are fetched the first time they are looked at
+		if (which == 0 && !statsAsked)
+		{
+			askGained(metric);
+		}
+
+		display.removeAll();
+		display.add(tabPages.get(which), BorderLayout.NORTH);
+		display.revalidate();
+		display.repaint();
 	}
 
 	/**
@@ -560,15 +630,19 @@ class VeritasEventsPanel extends PluginPanel
 		body.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		JLabel mark = new JLabel(chevron(open));
-		JLabel label = new JLabel(name.toUpperCase());
+		JLabel label = new JLabel(spaced(name));
 		label.setFont(FontManager.getRunescapeBoldFont());
 		label.setForeground(BRASS);
 
+		// a bar down the left edge, so a heading reads as the lid of
+		// something rather than as one more row in a list
 		JPanel head = new JPanel(new BorderLayout(6, 0));
 		head.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		head.setAlignmentX(Component.LEFT_ALIGNMENT);
+		head.setMaximumSize(new Dimension(Integer.MAX_VALUE, 27));
 		head.setBorder(BorderFactory.createCompoundBorder(
-			BorderFactory.createMatteBorder(0, 0, 2, 0, TEAL_D),
-			BorderFactory.createEmptyBorder(6, 8, 5, 6)));
+			BorderFactory.createMatteBorder(0, 3, 1, 0, TEAL_D),
+			BorderFactory.createEmptyBorder(5, 7, 4, 6)));
 		head.add(label, BorderLayout.CENTER);
 		head.add(mark, BorderLayout.EAST);
 		head.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
@@ -599,6 +673,14 @@ class VeritasEventsPanel extends PluginPanel
 			}
 		});
 
+		/*
+		 * Both children left aligned, deliberately.
+		 *
+		 * A BoxLayout places each child by its own alignmentX, so a header
+		 * left at Swing's default of centre and a body set to left disagree
+		 * about where the left edge is, and everything under the heading
+		 * slides inward. That was the drift to the right, not a margin.
+		 */
 		JPanel whole = column();
 		whole.setAlignmentX(Component.LEFT_ALIGNMENT);
 		whole.add(head);
