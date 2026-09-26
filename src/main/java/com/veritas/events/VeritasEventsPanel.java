@@ -182,7 +182,7 @@ class VeritasEventsPanel extends PluginPanel
 	private final JPanel gainedContent = column();
 	private final JComboBox<String> typeSelect = new JComboBox<>();
 	private final JComboBox<String> metricSelect = new JComboBox<>();
-	private final JLabel metricCaption = caption("Skill");
+	private final Caption metricCaption = caption("Skill");
 	private String[] metrics = SKILLS;
 	private final JComboBox<String> periodSelect = new JComboBox<>();
 	private String metric = SKILLS[0];
@@ -217,7 +217,7 @@ class VeritasEventsPanel extends PluginPanel
 	private final JPanel pageTab = column();
 	private final JPanel pageContent = column();
 	private final JComboBox<String> subSelect = new JComboBox<>();
-	private final JLabel subCaption = caption("Page");
+	private final Caption subCaption = caption("Page");
 	private int openPage = -1;
 	private String problem = "";
 	private final JPanel display = new JPanel(new BorderLayout());
@@ -385,7 +385,7 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			boolean boss = typeSelect.getSelectedIndex() == 1;
 			metrics = boss ? BOSSES : SKILLS;
-			metricCaption.setText(spaced(boss ? "Boss" : "Skill"));
+			metricCaption.set(boss ? "Boss" : "Skill");
 			fillMetrics();
 			askGained(metrics[0]);
 		});
@@ -610,14 +610,52 @@ class VeritasEventsPanel extends PluginPanel
 	 * out and in brass, since at this size a word of solid capitals is hard to
 	 * read and easy to mistake for the thing underneath it.
 	 */
-	private static JLabel caption(String text)
+	private static Caption caption(String text)
 	{
-		JLabel label = new JLabel(spaced(text));
-		label.setFont(FontManager.getRunescapeBoldFont());
-		label.setForeground(BRASS);
-		label.setAlignmentX(Component.LEFT_ALIGNMENT);
-		label.setBorder(BorderFactory.createEmptyBorder(0, 1, 4, 0));
-		return label;
+		return new Caption(text);
+	}
+
+	/**
+	 * A label above a control, in the same language as a title.
+	 *
+	 * A component rather than a plain label because two of them are retexted
+	 * as you switch between skills and bosses, and they carry a rule of their
+	 * own now.
+	 */
+	private static class Caption extends JPanel
+	{
+		private final JLabel label = new JLabel();
+
+		Caption(String text)
+		{
+			setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+			setBackground(ColorScheme.DARK_GRAY_COLOR);
+			setAlignmentX(Component.LEFT_ALIGNMENT);
+			setBorder(BorderFactory.createEmptyBorder(2, 0, 5, 0));
+
+			label.setFont(FontManager.getRunescapeSmallFont());
+			label.setForeground(BRASS);
+			label.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+			// the same rule a title carries, thinner, because this labels one
+			// control rather than heading a whole list
+			JPanel underline = new JPanel();
+			underline.setBackground(TEAL_D);
+			underline.setAlignmentX(Component.LEFT_ALIGNMENT);
+			underline.setPreferredSize(new Dimension(Integer.MAX_VALUE, 1));
+			underline.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+
+			add(label);
+			add(Box.createVerticalStrut(3));
+			add(underline);
+			set(text);
+		}
+
+		void set(String text)
+		{
+			label.setText(spaced(text));
+			setMaximumSize(new Dimension(Integer.MAX_VALUE, getPreferredSize().height));
+		}
 	}
 
 	/** A word in spaced capitals, which is how every caption in here is set. */
@@ -2264,8 +2302,17 @@ class VeritasEventsPanel extends PluginPanel
 		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 		panel.setBorder(BorderFactory.createEmptyBorder(4, 0, 7, 0));
 
-		JLabel label = new JLabel(html(text, TEXT_WIDTH));
-		label.setFont(FontManager.getRunescapeBoldFont().deriveFont(HEADING));
+		/*
+		 * The same language as a caption: brass, capitals, letter spaced.
+		 *
+		 * These two were the only headings in the panel and they disagreed
+		 * about everything except the colour. One was spaced with no rule and
+		 * the other unspaced with one, so a label above a dropdown and a
+		 * heading over a list looked like they came from different plugins.
+		 * One family now, and a title is simply the louder member of it.
+		 */
+		JLabel label = new JLabel(html(spaced(text), TEXT_WIDTH));
+		label.setFont(FontManager.getRunescapeBoldFont());
 		label.setForeground(BRASS);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
