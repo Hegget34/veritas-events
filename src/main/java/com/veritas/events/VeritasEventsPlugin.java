@@ -433,15 +433,33 @@ public class VeritasEventsPlugin extends Plugin
 
 		for (ItemStack stack : stacks)
 		{
-			long each = itemManager.getItemPrice(stack.getId());
-			total += each * stack.getQuantity();
-			icons.add(new int[]{stack.getId(), stack.getQuantity()});
-			learn(stack.getId());
+			int id = stack.getId();
+			int quantity = stack.getQuantity();
+
+			long each = 0;
+			String name = "Item " + id;
+			try
+			{
+				each = itemManager.getItemPrice(id);
+				name = itemManager.getItemComposition(id).getName();
+			}
+			catch (Exception unknownItem)
+			{
+				// An id the client cannot read, which is what a brand new item
+				// is until its cache catches up. Kept under a plain name rather
+				// than thrown away: unguarded, this threw out of the loop and
+				// cost the whole drop, including everything that fell with it.
+				log.debug("could not read item {}", id, unknownItem);
+			}
+
+			total += each * quantity;
+			icons.add(new int[]{id, quantity});
+			learn(id);
 
 			JsonObject item = new JsonObject();
-			item.addProperty("id", stack.getId());
-			item.addProperty("name", itemManager.getItemComposition(stack.getId()).getName());
-			item.addProperty("quantity", stack.getQuantity());
+			item.addProperty("id", id);
+			item.addProperty("name", name);
+			item.addProperty("quantity", quantity);
 			item.addProperty("priceEach", each);
 			items.add(item);
 		}
