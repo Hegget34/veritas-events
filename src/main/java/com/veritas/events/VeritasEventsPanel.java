@@ -2179,14 +2179,15 @@ class VeritasEventsPanel extends PluginPanel
 			 * between the cells is a grid line. Drawing borders on the labels
 			 * themselves would double them up wherever two cells meet.
 			 */
-			int rows = (entry.items.size() + ICON_COLUMNS - 1) / ICON_COLUMNS;
+			List<int[]> shown = dearestFirst(entry.items);
+			int rows = (shown.size() + ICON_COLUMNS - 1) / ICON_COLUMNS;
 			JPanel icons = new JPanel(new GridLayout(rows, ICON_COLUMNS, 1, 1));
 			icons.setBackground(GRID);
 			icons.setBorder(BorderFactory.createMatteBorder(1, 1, 1, 1, GRID));
 			icons.setVisible(!collapsed);
 			iconRows.add(icons);
 
-			for (int[] item : entry.items)
+			for (int[] item : shown)
 			{
 				JLabel icon = new JLabel();
 				// taller than the 36 by 32 artwork, so it is not pressed
@@ -2205,7 +2206,7 @@ class VeritasEventsPanel extends PluginPanel
 			}
 
 			// the last row is padded so the grid does not stretch what is in it
-			for (int spare = rows * ICON_COLUMNS - entry.items.size(); spare > 0; spare--)
+			for (int spare = rows * ICON_COLUMNS - shown.size(); spare > 0; spare--)
 			{
 				JLabel blank = new JLabel();
 				blank.setOpaque(true);
@@ -2449,6 +2450,37 @@ class VeritasEventsPanel extends PluginPanel
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * The items of one box, dearest first.
+	 *
+	 * By what the whole stack came to rather than by what one of them costs,
+	 * so a box leads with what actually made it: five hundred adamant arrows
+	 * ahead of a single rune longsword.
+	 *
+	 * Sorted on a copy, because the list on the entry is the one written out
+	 * to the profile and its order is not this method's to rearrange. Sorted
+	 * at drawing time too, since prices move and a stack grows.
+	 */
+	private List<int[]> dearestFirst(List<int[]> items)
+	{
+		List<int[]> sorted = new ArrayList<>(items);
+		sorted.sort((one, two) -> Long.compare(worthOf(two), worthOf(one)));
+		return sorted;
+	}
+
+	/**
+	 * What a stack is worth altogether, or nothing while the item is unknown.
+	 *
+	 * An item the plugin has not looked up yet sorts to the end rather than
+	 * holding up the whole box. describe() asks for the ones it is missing,
+	 * and the tab is drawn again once they arrive.
+	 */
+	private long worthOf(int[] item)
+	{
+		Facts known = facts.get(item[0]);
+		return known == null ? 0L : (long) known.ge * item[1];
 	}
 
 	/**
