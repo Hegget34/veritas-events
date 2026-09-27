@@ -89,6 +89,17 @@ public class VeritasEventsPlugin extends Plugin
 {
 	private static final String WISE_OLD_MAN = "https://api.wiseoldman.net/v2/groups/";
 
+	/**
+	 * How often to ask the board for the latest, in minutes.
+	 *
+	 * Not a setting, because there is no value anyone could pick that helps
+	 * them. The board rebuilds its answer every five minutes, so asking more
+	 * often returns bytes that cannot have changed while multiplying the
+	 * requests it serves, and asking less often only makes your own panel
+	 * stale. Five is the only number that is not wrong.
+	 */
+	private static final int REFRESH_MINUTES = 5;
+
 	/** The teal off the clan's own logo, for the lines it writes in chat. */
 	private static final Color VERITAS = new Color(0x5F, 0xA8, 0xD3);
 
@@ -746,8 +757,8 @@ public class VeritasEventsPlugin extends Plugin
 		{
 			refresher.cancel(false);
 		}
-		int minutes = Math.max(1, config.refreshMinutes());
-		refresher = executor.scheduleWithFixedDelay(this::refresh, minutes, minutes, TimeUnit.MINUTES);
+		refresher = executor.scheduleWithFixedDelay(
+			this::refresh, REFRESH_MINUTES, REFRESH_MINUTES, TimeUnit.MINUTES);
 	}
 
 	/**

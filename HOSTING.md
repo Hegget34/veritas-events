@@ -8,7 +8,7 @@ You need a web address that does two things. That is the whole requirement.
 
 ## 1. Answer a GET with your event
 
-The plugin asks your address for the event every few minutes. Answer with JSON:
+The plugin asks your address for the event every five minutes. Answer with JSON:
 
 ```json
 {

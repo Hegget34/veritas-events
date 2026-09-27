@@ -11,8 +11,6 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
-import net.runelite.client.config.Range;
-import net.runelite.client.config.Units;
 
 @ConfigGroup(VeritasEventsConfig.GROUP)
 public interface VeritasEventsConfig extends Config
@@ -50,15 +48,6 @@ public interface VeritasEventsConfig extends Config
 	default String eventKey()
 	{
 		return "";
-	}
-
-	@ConfigItem(keyName = "refreshMinutes", name = "Refresh every", position = 4, section = eventSection,
-		description = "How often to ask the board for the latest standings, in minutes.")
-	@Range(min = 1, max = 60)
-	@Units(Units.MINUTES)
-	default int refreshMinutes()
-	{
-		return 5;
 	}
 
 	@ConfigItem(keyName = "womGroupId", name = "Wise Old Man group", position = 5, section = eventSection,
