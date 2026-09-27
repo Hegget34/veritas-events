@@ -26,14 +26,6 @@ public interface VeritasEventsConfig extends Config
 	@ConfigSection(name = "Overlay", description = "Stamp the game window while you play", position = 2)
 	String overlaySection = "overlay";
 
-	@ConfigItem(keyName = "clanUrl", name = "Clan board", position = 0, section = eventSection,
-		description = "The clan's own address. Its pages are always there, event or no event. "
-			+ "Veritas is filled in already; another clan can point this at their own.")
-	default String clanUrl()
-	{
-		return "https://board.veritasclan.cc";
-	}
-
 	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 1, section = eventSection,
 		description = "Where event drops go. The host of a bingo or a drop "
 			+ "competition gives you this address. Blank sends nothing.")

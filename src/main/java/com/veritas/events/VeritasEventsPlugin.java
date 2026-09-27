@@ -90,6 +90,16 @@ public class VeritasEventsPlugin extends Plugin
 	private static final String WISE_OLD_MAN = "https://api.wiseoldman.net/v2/groups/";
 
 	/**
+	 * The clan's own board.
+	 *
+	 * Written in rather than offered as a setting. It is the same address for
+	 * everyone in the clan, nobody has a reason to change it, and one that
+	 * had been changed by accident would leave a member looking at an empty
+	 * panel with no clue why.
+	 */
+	private static final String CLAN_BOARD = "https://board.veritasclan.cc";
+
+	/**
 	 * How often to ask the board for the latest, in minutes.
 	 *
 	 * Not a setting, because there is no value anyone could pick that helps
@@ -637,7 +647,7 @@ public class VeritasEventsPlugin extends Plugin
 	private void refreshClan()
 	{
 		VeritasEventsPanel p = panel;
-		String url = config.clanUrl().trim();
+		String url = CLAN_BOARD;
 		if (p == null)
 		{
 			return;

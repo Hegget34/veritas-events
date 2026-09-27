@@ -1246,6 +1246,9 @@ class VeritasEventsPanel extends PluginPanel
 	 * on a page, but it cannot invent a destination: anything not on this list
 	 * or typed into the settings by the player is simply not drawn.
 	 */
+	/** The clan's own board, the same constant the plugin fetches from. */
+	private static final String CLAN_BOARD = "https://board.veritasclan.cc";
+
 	private static final String[] KNOWN_HOSTS = {
 		"veritasclan.cc", "wiseoldman.net", "droptracker.io", "templeosrs.com",
 		"discord.gg", "discord.com", "github.com", "oldschool.runescape.wiki",
@@ -1287,7 +1290,7 @@ class VeritasEventsPanel extends PluginPanel
 				return true;
 			}
 		}
-		for (String typed : new String[]{config.clanUrl(), config.eventUrl()})
+		for (String typed : new String[]{CLAN_BOARD, config.eventUrl()})
 		{
 			String mine = hostOf(typed);
 			if (!mine.isEmpty() && mine.equals(host))
