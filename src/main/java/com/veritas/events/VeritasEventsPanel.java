@@ -241,6 +241,24 @@ class VeritasEventsPanel extends PluginPanel
 	 * and asking for them all again.
 	 */
 	private final List<JPanel> iconRows = new ArrayList<>();
+
+	/**
+	 * The boxes from the last draw, so an unchanged one is not built twice.
+	 *
+	 * An item's picture is drawn with its number on it, so a picture is made
+	 * per quantity and every change of quantity is a picture nothing has
+	 * cached. Rebuilding the whole tab therefore asked for a fresh picture of
+	 * every item in it, and they arrive one at a time; with a drop every few
+	 * seconds that read as the whole tracker flickering.
+	 *
+	 * A box whose figures have not moved is now the same component as last
+	 * time, pictures and all, and only the source you are actually looting is
+	 * built again.
+	 */
+	private Map<String, JPanel> lastBoxes = new HashMap<>();
+
+	/** How many boxes the last draw had to build, for the line it logs. */
+	private int boxesBuilt;
 	private boolean grouped = true;
 	private boolean collapsed;
 	private final Runnable onRefresh;
@@ -897,7 +915,10 @@ class VeritasEventsPanel extends PluginPanel
 		facts = known;
 		if (better)
 		{
-			SwingUtilities.invokeLater(this::drawActivity);
+			// Through the same wait as a drop, rather than straight away. Facts
+			// turn up moments after the drop that wanted them, and redrawing
+			// for each meant two rebuilds of the tab for every one kill.
+			SwingUtilities.invokeLater(this::redrawSoon);
 		}
 	}
 
@@ -1841,6 +1862,12 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		// last draw's rows are about to be discarded with the tab itself
 		iconRows.clear();
+
+		// last draw's boxes are set aside to be taken from, and whatever is
+		// left in here when the draw is done was not wanted and goes
+		Map<String, JPanel> spare = lastBoxes;
+		lastBoxes = new HashMap<>();
+		boxesBuilt = 0;
 		long began = System.currentTimeMillis();
 
 		int drops = 0;
@@ -1918,7 +1945,7 @@ class VeritasEventsPanel extends PluginPanel
 			{
 				break;
 			}
-			activityTab.add(box(entry));
+			activityTab.add(kept(entry, spare));
 			activityTab.add(Box.createVerticalStrut(6));
 		}
 
@@ -1929,8 +1956,9 @@ class VeritasEventsPanel extends PluginPanel
 		}
 
 		// So a slow tab can be measured rather than guessed at
-		log.debug("loot tab: {} boxes, {} rows of pictures, {} ms",
-			drawn, iconRows.size(), System.currentTimeMillis() - began);
+		log.debug("loot tab: {} boxes ({} built, {} kept), {} rows of pictures, {} ms",
+			drawn, boxesBuilt, drawn - boxesBuilt, iconRows.size(),
+			System.currentTimeMillis() - began);
 	}
 
 	/**
@@ -2103,6 +2131,68 @@ class VeritasEventsPanel extends PluginPanel
 		}
 	}
 
+	/**
+	 * The box for one entry, built only if last draw's will no longer do.
+	 *
+	 * @param spare boxes from the last draw, taken from rather than copied, so
+	 *              the same component can never be handed out twice and end up
+	 *              added to the tab in two places at once
+	 */
+	private JPanel kept(Sent entry, Map<String, JPanel> spare)
+	{
+		String stamp = stamp(entry);
+		JPanel had = spare.remove(stamp);
+
+		if (had == null)
+		{
+			had = box(entry);
+			boxesBuilt++;
+		}
+		else
+		{
+			// box() puts its own pictures on the list as it builds them, so a
+			// box that skipped that has to add its own back
+			JPanel pictures = (JPanel) had.getClientProperty("icons");
+			if (pictures != null)
+			{
+				pictures.setVisible(!collapsed);
+				iconRows.add(pictures);
+			}
+		}
+
+		lastBoxes.put(stamp, had);
+		return had;
+	}
+
+	/**
+	 * Everything about an entry that shows on screen, run together.
+	 *
+	 * If two draws produce the same stamp the box would be identical, so the
+	 * one already built is good enough. Anything drawn has to be in here, or a
+	 * change to it would go unseen: the figures, the state, the wording, and
+	 * the items in the order they are shown, since that order follows prices
+	 * and prices move.
+	 *
+	 * Each item carries what it is worth as well as how many there are. That
+	 * is not only about prices changing: an item the plugin has not looked up
+	 * yet is worth nothing here and has no tooltip, so without it a box built
+	 * before the facts arrived would be kept forever and never get one.
+	 */
+	private String stamp(Sent entry)
+	{
+		StringBuilder out = new StringBuilder(entry.source)
+			.append('|').append(entry.count)
+			.append('|').append(entry.value)
+			.append('|').append(entry.state)
+			.append('|').append(entry.why());
+		for (int[] item : dearestFirst(entry.items))
+		{
+			out.append('|').append(item[0]).append('x').append(item[1])
+				.append('@').append(worthOf(item));
+		}
+		return out.toString();
+	}
+
 	/** One sent drop: source and value on top, item icons underneath. */
 	private JPanel box(Sent entry)
 	{
@@ -2213,6 +2303,9 @@ class VeritasEventsPanel extends PluginPanel
 				blank.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 				icons.add(blank);
 			}
+			// kept on the box so a reused one can put its pictures back on the
+			// list that collapsing hides
+			box.putClientProperty("icons", icons);
 			box.add(icons, BorderLayout.CENTER);
 		}
 
