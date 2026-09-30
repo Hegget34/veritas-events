@@ -895,10 +895,18 @@ class VeritasEventsPanel extends PluginPanel
 	static final class Facts
 	{
 		private final String name;
-		private final int ge;
-		private final int ha;
 
-		Facts(String name, int ge, int ha)
+		/*
+		 * Prices are long, not int.
+		 *
+		 * RuneLite widened getItemPrice in 1.13.0, and rightly: a stack can be
+		 * worth more than an int holds. Held the same way here so nothing is
+		 * quietly truncated on the way through.
+		 */
+		private final long ge;
+		private final long ha;
+
+		Facts(String name, long ge, long ha)
 		{
 			this.name = name;
 			this.ge = ge;
@@ -2573,7 +2581,7 @@ class VeritasEventsPanel extends PluginPanel
 	private long worthOf(int[] item)
 	{
 		Facts known = facts.get(item[0]);
-		return known == null ? 0L : (long) known.ge * item[1];
+		return known == null ? 0L : known.ge * item[1];
 	}
 
 	/**
@@ -2608,9 +2616,9 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** "9,315 (23 ea)", or the one figure when there is only one of them. */
-	private static String worth(int each, int quantity)
+	private static String worth(long each, int quantity)
 	{
-		String total = String.format("%,d", (long) each * quantity);
+		String total = String.format("%,d", each * quantity);
 		return quantity > 1 ? total + " (" + String.format("%,d", each) + " ea)" : total;
 	}
 
