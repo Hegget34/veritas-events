@@ -42,7 +42,18 @@ public interface VeritasEventsConfig extends Config
 		return "";
 	}
 
+	/*
+	 * Hidden, but still a setting.
+	 *
+	 * 13727 is Veritas and is not something anyone here should be changing,
+	 * so it has no business taking up a row in the settings. It stays a
+	 * setting rather than being written into the code because there are
+	 * occasions worth keeping the door open for: a group that is renumbered,
+	 * or 0 to turn the Clan stats view off. Anyone with reason to change it
+	 * can still set it, they simply will not trip over it.
+	 */
 	@ConfigItem(keyName = "womGroupId", name = "Wise Old Man group", position = 5, section = eventSection,
+		hidden = true,
 		description = "The group id the Gained view reads from. Veritas is 13727. Set it to 0 to turn that view off.")
 	default int womGroupId()
 	{
