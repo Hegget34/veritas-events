@@ -10,6 +10,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.inject.Provides;
+import com.veritas.events.party.PartyHub;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -58,6 +59,9 @@ import net.runelite.client.events.PlayerLootReceived;
 import net.runelite.client.events.ServerNpcLoot;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
+import net.runelite.client.game.SpriteManager;
+import net.runelite.client.input.KeyManager;
+import net.runelite.client.input.MouseManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.PluginManager;
@@ -173,7 +177,26 @@ public class VeritasEventsPlugin extends Plugin
 	@Inject
 	private ClientThread clientThread;
 
+	@Inject
+	private SpriteManager spriteManager;
+
+	@Inject
+	private PartyHub party;
+
+	@Inject
+	private VeritasPartyOverlay partyOverlay;
+
+	@Inject
+	private VeritasPartyPings partyPings;
+
+	@Inject
+	private KeyManager keyManager;
+
+	@Inject
+	private MouseManager mouseManager;
+
 	private VeritasEventsPanel panel;
+	private VeritasPartyPanel partyPanel;
 	private NavigationButton navButton;
 	private Runnable lastSend;
 	private ScheduledFuture<?> refresher;
@@ -228,9 +251,21 @@ public class VeritasEventsPlugin extends Plugin
 	protected void startUp()
 	{
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
+
+		/*
+		 * The party panel is built first, because the main one holds it.
+		 *
+		 * It cannot read what an item is called itself, since that has to
+		 * happen on the client thread, so it is given the same two ways in
+		 * and out that the loot tracker uses: ask what this id is called,
+		 * and here are some ids nobody could name.
+		 */
+		partyPanel = new VeritasPartyPanel(party, itemManager, spriteManager,
+			this::itemName, this::factsWanted);
+
 		panel = new VeritasEventsPanel(config, itemManager, new ImageIcon(icon),
 			this::resend, this::refreshByHand, this::gained, this::lootTrackerOff,
-			this::factsWanted, gson, configManager);
+			this::factsWanted, gson, configManager, partyPanel);
 		navButton = NavigationButton.builder()
 			.tooltip("Veritas")
 			.icon(icon)
@@ -238,6 +273,17 @@ public class VeritasEventsPlugin extends Plugin
 			.build();
 		clientToolbar.addNavigation(navButton);
 		overlayManager.add(overlay);
+
+		/*
+		 * Whether we stand in for RuneLite's own Party plugin is asked each
+		 * time rather than decided here, because somebody can switch it on
+		 * halfway through an evening and the answer has to change with them.
+		 */
+		party.start(() -> partyPanel.drawSoon(), partyOverlay::ping, this::corePartyOff);
+		overlayManager.add(partyOverlay);
+		keyManager.registerKeyListener(partyPings);
+		mouseManager.registerMouseListener(partyPings);
+
 		refresh();
 		reschedule();
 	}
@@ -250,9 +296,14 @@ public class VeritasEventsPlugin extends Plugin
 			refresher.cancel(false);
 			refresher = null;
 		}
+		party.stop();
+		mouseManager.unregisterMouseListener(partyPings);
+		keyManager.unregisterKeyListener(partyPings);
+		overlayManager.remove(partyOverlay);
 		overlayManager.remove(overlay);
 		clientToolbar.removeNavigation(navButton);
 		panel = null;
+		partyPanel = null;
 		navButton = null;
 	}
 
@@ -568,7 +619,7 @@ public class VeritasEventsPlugin extends Plugin
 	}
 
 	/**
-	 * A full colour PNG of the game runs to about half a megabyte, which is a lot
+	 * A full color PNG of the game runs to about half a megabyte, which is a lot
 	 * to keep for every drop of an event. A JPEG of the same frame is about a
 	 * fifth of that and still sharp enough to read the chatbox, so drops stay
 	 * verifiable afterwards. Only very large clients are scaled down at all.
@@ -751,7 +802,7 @@ public class VeritasEventsPlugin extends Plugin
 		}
 	}
 
-	/** A line in the chat box, in the clan's own colours. */
+	/** A line in the chat box, in the clan's own colors. */
 	private void say(String words, boolean good)
 	{
 		chatMessageManager.queue(QueuedMessage.builder()
@@ -838,6 +889,34 @@ public class VeritasEventsPlugin extends Plugin
 	 * plugin ever posts. With that switched off nothing arrives and there is no
 	 * error to show for it, so say so rather than look broken.
 	 */
+	/**
+	 * Whether RuneLite's own Party plugin is switched off.
+	 *
+	 * Decides whether we send its status messages on its behalf. With both
+	 * running, every status would go out twice and two sets of overlays
+	 * would be drawn one on top of the other.
+	 */
+	private boolean corePartyOff()
+	{
+		for (Plugin plugin : pluginManager.getPlugins())
+		{
+			PluginDescriptor descriptor = plugin.getClass().getAnnotation(PluginDescriptor.class);
+			if (descriptor != null && "Party".equals(descriptor.name()))
+			{
+				return !pluginManager.isPluginEnabled(plugin);
+			}
+		}
+		return true;
+	}
+
+	/** What an item is called, once the plugin has looked it up, or nothing yet. */
+	@Nullable
+	private String itemName(int id)
+	{
+		VeritasEventsPanel.Facts known = facts.get(id);
+		return known == null ? null : known.name();
+	}
+
 	boolean lootTrackerOff()
 	{
 		for (Plugin plugin : pluginManager.getPlugins())

@@ -6,11 +6,13 @@
 package com.veritas.events;
 
 import java.awt.Color;
+import java.awt.event.KeyEvent;
 import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
+import net.runelite.client.config.Keybind;
 
 @ConfigGroup(VeritasEventsConfig.GROUP)
 public interface VeritasEventsConfig extends Config
@@ -25,6 +27,10 @@ public interface VeritasEventsConfig extends Config
 
 	@ConfigSection(name = "Overlay", description = "Stamp the game window while you play", position = 2)
 	String overlaySection = "overlay";
+
+	@ConfigSection(name = "Party Hub", description = "Raiding together: pings, "
+		+ "and what shows above your team", position = 3)
+	String partySection = "party";
 
 	@ConfigItem(keyName = "eventUrl", name = "Event URL", position = 1, section = eventSection,
 		description = "Where event drops go. The host of a bingo or a drop "
@@ -133,18 +139,97 @@ public interface VeritasEventsConfig extends Config
 	}
 
 	@Alpha
-	@ConfigItem(keyName = "passwordColor", name = "Password colour", position = 3, section = overlaySection,
-		description = "Pick a colour a screenshot cannot easily be faked with.")
+	@ConfigItem(keyName = "passwordColor", name = "Password color", position = 3, section = overlaySection,
+		description = "Pick a color a screenshot cannot easily be faked with.")
 	default Color passwordColor()
 	{
 		return Color.YELLOW;
 	}
 
 	@Alpha
-	@ConfigItem(keyName = "dateTimeColor", name = "Date and time colour", position = 4, section = overlaySection,
-		description = "Make this different to the password colour.")
+	@ConfigItem(keyName = "dateTimeColor", name = "Date and time color", position = 4, section = overlaySection,
+		description = "Make this different to the password color.")
 	default Color dateTimeColor()
 	{
 		return new Color(0x46, 0x8F, 0xB1);
 	}
+
+	// ------------------------------------------------------- Party Hub ----
+
+	@ConfigItem(keyName = "partyPings", name = "Tile pings", position = 0, section = partySection,
+		description = "Hold the key below and click the ground to mark a tile "
+			+ "for everyone in the party, and see theirs.")
+	default boolean partyPings()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "partyPingKey", name = "Ping hotkey", position = 1, section = partySection,
+		description = "Held down while you click. Back quote is the key above Tab.")
+	default Keybind partyPingKey()
+	{
+		return new Keybind(KeyEvent.VK_BACK_QUOTE, 0);
+	}
+
+	@ConfigItem(keyName = "partyPingNames", name = "Show who pinged", position = 2,
+		section = partySection,
+		description = "Put the name of whoever pinged over the tile, in their "
+			+ "own color. Turn off if it gets busy.")
+	default boolean partyPingNames()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "partyPingSound", name = "Sound on ping", position = 3, section = partySection,
+		description = "Play a note when somebody pings a tile.")
+	default boolean partyPingSound()
+	{
+		return false;
+	}
+
+	@ConfigItem(keyName = "partyOverlay", name = "Show health above the team", position = 4,
+		section = partySection,
+		description = "Health and prayer over the heads of the people in your "
+			+ "party, so you can see who is in trouble without looking away.")
+	default boolean partyOverlay()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "partyNames", name = "Mark party names", position = 5, section = partySection,
+		description = "Color the names of people in your party so they stand "
+			+ "out from everyone else around you.")
+	default boolean partyNames()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(keyName = "partyColor", name = "Your party color", position = 6, section = partySection,
+		description = "The color your tile pings and your name are drawn in "
+			+ "on everyone else's screen. Theirs show in their own colors.")
+	default Color partyColor()
+	{
+		return new Color(0xE0, 0xC0, 0x90);
+	}
+
+	/*
+	 * The last party joined, remembered so you can get back into it.
+	 *
+	 * Hidden, because it is not a setting anybody would sit down to change.
+	 * It is what the Join previous party button reads, and the only way to
+	 * set it is to join a party.
+	 */
+	@ConfigItem(keyName = "partyPrevious", name = "Last party", position = 7,
+		section = partySection, hidden = true,
+		description = "The last passphrase used, for the Join previous party button.")
+	default String partyPrevious()
+	{
+		return "";
+	}
+
+	@ConfigItem(keyName = "partyPrevious", name = "Last party", position = 7,
+		section = partySection, hidden = true,
+		description = "The last passphrase used, for the Join previous party button.")
+	void setPartyPrevious(String passphrase);
 }

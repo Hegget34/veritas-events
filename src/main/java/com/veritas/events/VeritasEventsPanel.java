@@ -85,21 +85,21 @@ class VeritasEventsPanel extends PluginPanel
 	private static final int ICON_COLUMNS = 5;
 
 	/** What shows through the gaps between item cells. */
-	private static final Color GRID = new Color(0x3A, 0x3A, 0x48);
+	static final Color GRID = new Color(0x3A, 0x3A, 0x48);
 
 	/** The clan's teal, for the drops that reached an event. */
-	private static final Color TEAL = new Color(0x5F, 0xA8, 0xD3);
+	static final Color TEAL = new Color(0x5F, 0xA8, 0xD3);
 	private static final String DROPS = "drops_";
-	private static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
+	static final Color GOLD = new Color(0xC8, 0xA0, 0x00);
 	private static final Color BLUE = new Color(0x5A, 0xA6, 0xD8);
 
 	/** What the entry under the pointer sits on: teal, dulled to read over. */
-	private static final Color TEAL_SEAT = new Color(0x1E, 0x3A, 0x4C);
+	static final Color TEAL_SEAT = new Color(0x1E, 0x3A, 0x4C);
 
 	/** The clan site's own palette, so the two look like one thing. */
-	private static final Color BRASS = new Color(0xE0, 0xC0, 0x90);
-	private static final Color BONE = new Color(0xF0, 0xF0, 0xE0);
-	private static final Color TEAL_D = new Color(0x2D, 0x6C, 0x92);
+	static final Color BRASS = new Color(0xE0, 0xC0, 0x90);
+	static final Color BONE = new Color(0xF0, 0xF0, 0xE0);
+	static final Color TEAL_D = new Color(0x2D, 0x6C, 0x92);
 
 	/**
 	 * How wide wrapped text can be.
@@ -109,15 +109,16 @@ class VeritasEventsPanel extends PluginPanel
 	 * 170. Anything wider is drawn off the right edge, which is what was
 	 * happening to every hint in here.
 	 */
-	private static final int TEXT_WIDTH = PluginPanel.PANEL_WIDTH - 55;
+	static final int TEXT_WIDTH = PluginPanel.PANEL_WIDTH - 55;
 
 	/** The same, inside a card, which has an accent and padding of its own. */
-	private static final int CARD_WIDTH = TEXT_WIDTH - 20;
+	static final int CARD_WIDTH = TEXT_WIDTH - 20;
 	private static final int BAR_HEIGHT = 16;
 	private static final int BUTTON_HEIGHT = 26;
 	private static final float HEADING = 17f;
 	private static final float FIGURE = 20f;
-	private static final String[] VIEWS = {"Home", "This week", "Event", "Clan stats", "Loot Tracker"};
+	private static final String[] VIEWS = {"Home", "This week", "Event", "Clan stats",
+		"Loot Tracker", "Party Hub"};
 
 	/** Ordered worst last, so merging a group keeps the worst outcome. */
 	static final int SENT = 0;
@@ -210,6 +211,9 @@ class VeritasEventsPanel extends PluginPanel
 	private final JPanel activityTab = column();
 	private final JPanel weekTab = column();
 
+	/** Built by the plugin, because it needs the party and we do not. */
+	private final VeritasPartyPanel partyTab;
+
 	/** Kills this client has watched, by monster, lower cased. */
 	private Map<String, Integer> killsSeen = new HashMap<>();
 
@@ -266,8 +270,10 @@ class VeritasEventsPanel extends PluginPanel
 	VeritasEventsPanel(VeritasEventsConfig config, ItemManager itemManager,
 		@Nullable ImageIcon logo, Runnable onResend, Runnable onRefresh,
 		BiConsumer<String, String> onGained, BooleanSupplier lootTrackerOff,
-		Consumer<List<Integer>> onFactsWanted, Gson gson, ConfigManager configManager)
+		Consumer<List<Integer>> onFactsWanted, Gson gson, ConfigManager configManager,
+		VeritasPartyPanel partyTab)
 	{
+		this.partyTab = partyTab;
 		this.config = config;
 		this.itemManager = itemManager;
 		this.gson = gson;
@@ -573,6 +579,11 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			view = activityTab;
 		}
+		else if (chosen == 5)
+		{
+			view = partyTab;
+			partyTab.draw();
+		}
 		else if (chosen >= VIEWS.length)
 		{
 			drawBoardPage(chosen - VIEWS.length);
@@ -693,7 +704,7 @@ class VeritasEventsPanel extends PluginPanel
 	}
 
 	/** A word in spaced capitals, which is how every caption in here is set. */
-	private static String spaced(String text)
+	static String spaced(String text)
 	{
 		StringBuilder out = new StringBuilder();
 		for (char letter : text.toUpperCase().toCharArray())
@@ -896,6 +907,19 @@ class VeritasEventsPanel extends PluginPanel
 	{
 		private final String name;
 
+		/**
+		 * What it is called.
+		 *
+		 * The field is private and this class is nested, so the plugin cannot
+		 * reach it even though they share a package. The party panel needs the
+		 * name for its tooltips, and this is how it gets there.
+		 */
+		String name()
+		{
+			return name;
+		}
+
+
 		/*
 		 * Prices are long, not int.
 		 *
@@ -953,6 +977,16 @@ class VeritasEventsPanel extends PluginPanel
 
 		JsonObject week = object(lastClan, "week");
 		boolean any = false;
+
+		// Whatever staff have written in the admin's news box, first, because
+		// news is what somebody opening this tab came to read.
+		JsonArray news = array(lastClan != null ? lastClan : lastDetails, "home");
+		if (news != null && news.size() > 0)
+		{
+			blocks(weekTab, news);
+			weekTab.add(Box.createVerticalStrut(10));
+			any = true;
+		}
 
 		for (String[] which : new String[][]{
 			{"sotw", "Skill of the week", "XP"},
@@ -1045,13 +1079,44 @@ class VeritasEventsPanel extends PluginPanel
 			weekTab.add(Box.createVerticalStrut(14));
 		}
 
-		// Whatever staff have written in the admin's news box. This is the
-		// page for what is going on, so it is the page their posts belong on.
-		JsonArray news = array(lastClan != null ? lastClan : lastDetails, "home");
-		if (news != null && news.size() > 0)
+		/*
+		 * The schedule, which used to be a page of its own.
+		 *
+		 * It answers the same question as the rest of this tab, so it was two
+		 * destinations for one answer. Its own headings come with it, so it
+		 * reads as another section here rather than as something bolted on.
+		 */
+		JsonObject schedule = pageNamed("Schedule");
+		if (schedule != null)
 		{
-			blocks(weekTab, news);
-			any = true;
+			JsonArray within = array(schedule, "blocks");
+			if (within != null && within.size() > 0)
+			{
+				/*
+				 * Our own heading, not the page's.
+				 *
+				 * The page called itself Coming up, which read oddly once it
+				 * was a section of this tab rather than a destination of its
+				 * own. The board still says what it says; this is only how
+				 * the plugin introduces it, so staff need change nothing.
+				 */
+				weekTab.add(title("Upcoming events"));
+
+				JsonArray rest = new JsonArray();
+				for (int i = 0; i < within.size(); i++)
+				{
+					JsonObject block = within.get(i).getAsJsonObject();
+					// the page's own heading would now be a second one
+					if (i == 0 && "heading".equals(text(block, "type")))
+					{
+						continue;
+					}
+					rest.add(block);
+				}
+
+				blocks(weekTab, rest);
+				any = true;
+			}
 		}
 
 		if (!any)
@@ -1447,7 +1512,7 @@ class VeritasEventsPanel extends PluginPanel
 		bar.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
 		bar.setForeground(GOLD);
 		// ProgressBar paints its fill exactly BAR_HEIGHT tall, so the component
-		// has to be that tall too or the unfilled colour shows under it.
+		// has to be that tall too or the unfilled color shows under it.
 		bar.setPreferredSize(new Dimension(0, BAR_HEIGHT));
 		bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, BAR_HEIGHT));
 		bar.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1586,7 +1651,43 @@ class VeritasEventsPanel extends PluginPanel
 	 * event adds. Clan pages are there with no event set, which is the point of
 	 * keeping the two addresses apart.
 	 */
+	/** One of the board's pages by name, for the ones drawn somewhere of their own. */
+	@Nullable
+	private JsonObject pageNamed(String name)
+	{
+		for (JsonObject page : allPages())
+		{
+			if (text(page, "name").equalsIgnoreCase(name))
+			{
+				return page;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The pages the menu offers, which is not quite all of them.
+	 *
+	 * Schedule is drawn into This week, and a page drawn in two places is two
+	 * answers to one question. DropTracker's slot is where Party Hub went.
+	 * Both are still published by the board and still on the website; they
+	 * are simply not destinations in here any more.
+	 */
 	private List<JsonObject> pages()
+	{
+		List<JsonObject> shown = new ArrayList<>();
+		for (JsonObject page : allPages())
+		{
+			String name = text(page, "name");
+			if (!name.equalsIgnoreCase("Schedule") && !name.equalsIgnoreCase("DropTracker"))
+			{
+				shown.add(page);
+			}
+		}
+		return shown;
+	}
+
+	private List<JsonObject> allPages()
 	{
 		List<JsonObject> all = new ArrayList<>();
 		for (JsonObject board : new JsonObject[]{lastClan, lastDetails})
@@ -2318,8 +2419,8 @@ class VeritasEventsPanel extends PluginPanel
 		}
 
 		/*
-		 * A colour down the side is not a meaning. Every box that is out of the
-		 * ordinary says in words what became of it, in the same colour as its
+		 * A color down the side is not a meaning. Every box that is out of the
+		 * ordinary says in words what became of it, in the same color as its
 		 * bar, and the ordinary case says nothing at all and has no bar.
 		 */
 		if (!entry.why().isEmpty())
@@ -2335,7 +2436,7 @@ class VeritasEventsPanel extends PluginPanel
 
 	// ---- small builders, so the tabs above stay readable ----
 
-	private static JPanel column()
+	static JPanel column()
 	{
 		JPanel panel = new JPanel();
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
@@ -2387,7 +2488,7 @@ class VeritasEventsPanel extends PluginPanel
 	 * BorderLayout let it run underneath the figure, which is why long rows
 	 * were printed on top of each other.
 	 */
-	private static JPanel cells(String left, String right, Color leftColour, Color rightColour)
+	private static JPanel cells(String left, String right, Color leftColor, Color rightColor)
 	{
 		JPanel panel = new JPanel(new BorderLayout(8, 0));
 		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -2396,7 +2497,7 @@ class VeritasEventsPanel extends PluginPanel
 
 		JLabel name = new JLabel(left);
 		name.setFont(FontManager.getRunescapeFont());
-		name.setForeground(leftColour);
+		name.setForeground(leftColor);
 		name.setToolTipText(left);
 		name.setMinimumSize(new Dimension(20, 1));
 		panel.add(name, BorderLayout.CENTER);
@@ -2405,7 +2506,7 @@ class VeritasEventsPanel extends PluginPanel
 		{
 			JLabel figure = new JLabel(right);
 			figure.setFont(FontManager.getRunescapeFont());
-			figure.setForeground(rightColour);
+			figure.setForeground(rightColor);
 			panel.add(figure, BorderLayout.EAST);
 		}
 
@@ -2429,7 +2530,7 @@ class VeritasEventsPanel extends PluginPanel
 		 * The same language as a caption: brass, capitals, letter spaced.
 		 *
 		 * These two were the only headings in the panel and they disagreed
-		 * about everything except the colour. One was spaced with no rule and
+		 * about everything except the color. One was spaced with no rule and
 		 * the other unspaced with one, so a label above a dropdown and a
 		 * heading over a list looked like they came from different plugins.
 		 * One family now, and a title is simply the louder member of it.
@@ -2641,17 +2742,17 @@ class VeritasEventsPanel extends PluginPanel
 	 * It used to be written in as 200, which is wider than the sidebar, so
 	 * every wrapped line was cut off on the right.
 	 */
-	private static String html(String text, int width)
+	static String html(String text, int width)
 	{
 		String safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 		return "<html><body style='width:" + width + "px'>" + safe + "</body></html>";
 	}
 
-	private static JLabel line(String text, Color colour)
+	static JLabel line(String text, Color color)
 	{
 		JLabel label = new JLabel(text);
 		label.setFont(FontManager.getRunescapeFont());
-		label.setForeground(colour);
+		label.setForeground(color);
 		label.setAlignmentX(Component.LEFT_ALIGNMENT);
 		label.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
 		return label;
