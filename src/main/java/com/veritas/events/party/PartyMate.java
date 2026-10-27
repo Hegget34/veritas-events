@@ -5,217 +5,186 @@
  */
 package com.veritas.events.party;
 
+import java.awt.Color;
+import java.util.Set;
 import javax.annotation.Nullable;
+import net.runelite.api.Item;
+import net.runelite.api.Prayer;
+import net.runelite.api.Skill;
+import net.runelite.client.party.PartyMember;
 
 /**
- * Everything known about one person in the party.
+ * One person in the party, as the panel wants to read them.
  *
- * Filled in from several messages that arrive separately and at their own
- * pace: the bars come in on a tick, gear when a slot changes, prayers on a
- * flick. So every part of this is optional and the panel draws whatever has
- * turned up rather than waiting for a complete picture, which is why
- * somebody who has only just joined appears at once with their name and
- * fills in over the next second or two.
+ * This used to hold everything itself, filled in from messages of our own
+ * carrying inventory, worn gear, prayers and levels. RuneLite 1.13.4 moved
+ * all of that into the party proper, so PartyMember already knows it and
+ * sending it a second time would be sending it twice.
+ *
+ * What is left is a reader: it turns what PartyMember holds into the shapes
+ * the panel draws, and adds the two things core still does not carry, which
+ * are the world somebody is on and which spellbook they have open.
  */
 public class PartyMate
 {
-	private final long memberId;
-	private String name = "";
-	private boolean loggedIn;
-	private int combat;
-	private int world;
-	private int spellbook = -1;
+	private static final Prayer[] PRAYERS = Prayer.values();
+	private static final Skill[] SKILLS = Skill.values();
 
-	/**
-	 * The color this person chose for themselves.
-	 *
-	 * Theirs, not ours. It arrives on their status message and is drawn on
-	 * our screen, which is the only way a party of five can tell whose ping
-	 * is whose.
-	 */
+	/** Inventory is 28 slots and worn gear 14, as id and quantity pairs. */
+	private static final int CARRIED_SLOTS = 28;
+	private static final int WORN_SLOTS = 14;
+
+	private final PartyMember member;
+
+	/** The world and the spellbook, which the party itself does not carry. */
+	private final VeritasExtras extras;
+
 	@Nullable
-	private java.awt.Color color;
+	private final Color color;
 
-	private int health = -1;
-	private int healthMax = -1;
-	private int prayer = -1;
-	private int prayerMax = -1;
-	private int run = -1;
-	private int spec = -1;
-
-	private int[] carried = new int[0];
-	private int[] worn = new int[0];
-	private int[] prayers = new int[0];
-	private int[] real = new int[0];
-	private int[] boosted = new int[0];
-
-	public PartyMate(long memberId)
+	public PartyMate(PartyMember member, @Nullable VeritasExtras extras, @Nullable Color color)
 	{
-		this.memberId = memberId;
+		this.member = member;
+		this.extras = extras == null ? new VeritasExtras(0, -1) : extras;
+		this.color = color;
 	}
 
 	public long getMemberId()
 	{
-		return memberId;
+		return member.getMemberId();
 	}
 
 	public String getName()
 	{
-		return name == null ? "" : name;
-	}
-
-	public void setName(String name)
-	{
-		this.name = name;
+		String said = member.getDisplayName();
+		return said == null ? "" : said;
 	}
 
 	public boolean isLoggedIn()
 	{
-		return loggedIn;
-	}
-
-	public void setLoggedIn(boolean loggedIn)
-	{
-		this.loggedIn = loggedIn;
-	}
-
-	public int getCombat()
-	{
-		return combat;
+		return member.isLoggedIn();
 	}
 
 	public int getWorld()
 	{
-		return world;
+		return extras.getWorld();
 	}
 
-	/** As the game numbers them, or -1 before anything has been heard. */
 	public int getSpellbook()
 	{
-		return spellbook;
+		return extras.getSpellbook();
 	}
 
-	public int getHealth()
-	{
-		return health;
-	}
-
-	public int getHealthMax()
-	{
-		return healthMax;
-	}
-
-	public int getPrayer()
-	{
-		return prayer;
-	}
-
-	public int getPrayerMax()
-	{
-		return prayerMax;
-	}
-
-	public int getRun()
-	{
-		return run;
-	}
-
-	public int getSpec()
-	{
-		return spec;
-	}
-
-	public int[] getCarried()
-	{
-		return carried;
-	}
-
-	public int[] getWorn()
-	{
-		return worn;
-	}
-
-	public int[] getPrayers()
-	{
-		return prayers;
-	}
-
-	public int[] getReal()
-	{
-		return real;
-	}
-
-	public int[] getBoosted()
-	{
-		return boosted;
-	}
-
-	/**
-	 * Takes the four bars from RuneLite's own status message.
-	 *
-	 * Every field on it is a boxed Integer and any of them may be null,
-	 * because it is sent as a difference: only what changed is filled in and
-	 * the rest is left for the receiver to remember. Reading it as plain ints
-	 * would throw on the first message that only carried run energy.
-	 */
 	@Nullable
-	public java.awt.Color getColor()
+	public Color getColor()
 	{
 		return color;
 	}
 
-	public void setColor(@Nullable java.awt.Color color)
+	/**
+	 * Health and prayer, which are skills rather than fields of their own.
+	 *
+	 * The boosted figure is how much is left and the base is the most it
+	 * could be, which is exactly what a health bar is made of.
+	 */
+	public int getHealth()
 	{
-		this.color = color;
+		return level(Skill.HITPOINTS, true);
 	}
 
-	public void take(Integer healthNow, Integer healthOf, Integer prayerNow,
-		Integer prayerOf, Integer runNow, Integer specNow)
+	public int getHealthMax()
 	{
-		if (healthNow != null)
-		{
-			health = healthNow;
-		}
-		if (healthOf != null)
-		{
-			healthMax = healthOf;
-		}
-		if (prayerNow != null)
-		{
-			prayer = prayerNow;
-		}
-		if (prayerOf != null)
-		{
-			prayerMax = prayerOf;
-		}
-		if (runNow != null)
-		{
-			run = runNow;
-		}
-		if (specNow != null)
-		{
-			spec = specNow;
-		}
+		return level(Skill.HITPOINTS, false);
 	}
 
-	public void take(VeritasGear gear)
+	public int getPrayer()
 	{
-		carried = gear.getCarried();
-		worn = gear.getWorn();
+		return level(Skill.PRAYER, true);
 	}
 
-	public void take(VeritasPrayers lit)
+	public int getPrayerMax()
 	{
-		prayers = lit.getActive();
+		return level(Skill.PRAYER, false);
 	}
 
-	public void take(VeritasLevels levels)
+	public int getRun()
 	{
-		real = levels.getReal();
-		boosted = levels.getBoosted();
-		combat = levels.getCombat();
-		world = levels.getWorld();
-		spellbook = levels.getSpellbook();
+		return member.getRunEnergy();
+	}
+
+	public int getSpec()
+	{
+		return member.getSpecEnergy();
+	}
+
+	/**
+	 * Combat level, worked out rather than sent.
+	 *
+	 * The party carries the levels it is made of, so sending the answer as
+	 * well would be sending something anyone holding the question can get.
+	 */
+	public int getCombat()
+	{
+		int attack = level(Skill.ATTACK, false);
+		int strength = level(Skill.STRENGTH, false);
+		int defence = level(Skill.DEFENCE, false);
+		int hitpoints = level(Skill.HITPOINTS, false);
+		int prayer = level(Skill.PRAYER, false);
+		int ranged = level(Skill.RANGED, false);
+		int magic = level(Skill.MAGIC, false);
+
+		if (attack + strength + defence + hitpoints == 0)
+		{
+			return 0;
+		}
+
+		double base = 0.25 * (defence + hitpoints + Math.floor(prayer / 2.0));
+		double melee = 0.325 * (attack + strength);
+		double range = 0.325 * Math.floor(ranged * 3.0 / 2.0);
+		double mage = 0.325 * Math.floor(magic * 3.0 / 2.0);
+		return (int) Math.floor(base + Math.max(melee, Math.max(range, mage)));
+	}
+
+	/** The inventory as id and quantity pairs, empty slots kept. */
+	public int[] getCarried()
+	{
+		return slots(member.getInv(), CARRIED_SLOTS);
+	}
+
+	public int[] getWorn()
+	{
+		return slots(member.getWorn(), WORN_SLOTS);
+	}
+
+	/** Which prayers are lit, as ordinals of net.runelite.api.Prayer. */
+	public int[] getPrayers()
+	{
+		Set<Prayer> lit = member.getPrayers();
+		if (lit == null || lit.isEmpty())
+		{
+			return new int[0];
+		}
+
+		int[] out = new int[lit.size()];
+		int count = 0;
+		for (int n = 0; n < PRAYERS.length && count < out.length; n++)
+		{
+			if (lit.contains(PRAYERS[n]))
+			{
+				out[count++] = n;
+			}
+		}
+		return count == out.length ? out : java.util.Arrays.copyOf(out, count);
+	}
+
+	public int[] getBoosted()
+	{
+		return levels(true);
+	}
+
+	public int[] getReal()
+	{
+		return levels(false);
 	}
 
 	/**
@@ -224,22 +193,67 @@ public class PartyMate
 	 * A card with nothing in it is not a person who has nothing; it is a
 	 * person we have not heard from, which is a distinction nobody reading
 	 * the panel mid raid should have to make. Somebody joining fills this
-	 * within a tick, and somebody running a different plugin may never fill
-	 * it, so the card simply waits until there is something to show.
-	 *
-	 * The bars count, because a clanmate on RuneLite's own Party plugin
-	 * sends those and nothing else, and their health is worth a card.
+	 * within a tick, so the card simply waits until there is something.
 	 */
 	public boolean heardFrom()
 	{
-		return carried.length > 0 || worn.length > 0 || boosted.length > 0
-			|| health >= 0 || prayer >= 0;
+		return member.getInv() != null || member.getWorn() != null
+			|| level(Skill.HITPOINTS, false) > 0;
+	}
+
+	private int level(Skill skill, boolean boosted)
+	{
+		try
+		{
+			return boosted ? member.getStatBoost(skill) : member.getStatBase(skill);
+		}
+		catch (Exception notKnown)
+		{
+			// a skill this member's client did not report
+			return 0;
+		}
+	}
+
+	private int[] levels(boolean boosted)
+	{
+		int[] out = new int[SKILLS.length];
+		boolean any = false;
+		for (int n = 0; n < SKILLS.length; n++)
+		{
+			out[n] = level(SKILLS[n], boosted);
+			any |= out[n] > 0;
+		}
+		return any ? out : new int[0];
+	}
+
+	/**
+	 * One container as id and quantity pairs, empty slots and all.
+	 *
+	 * The empty ones are kept so the grid drawn from this lines up with the
+	 * player's own inventory and a glance finds things where it expects them.
+	 */
+	private static int[] slots(@Nullable Item[] items, int howMany)
+	{
+		if (items == null)
+		{
+			return new int[0];
+		}
+
+		int[] out = new int[howMany * 2];
+		java.util.Arrays.fill(out, -1);
+		for (int n = 0; n < howMany && n < items.length; n++)
+		{
+			Item item = items[n];
+			out[n * 2] = item == null ? -1 : item.getId();
+			out[n * 2 + 1] = item == null ? 0 : item.getQuantity();
+		}
+		return out;
 	}
 
 	/**
 	 * Everything on screen about this person, run together.
 	 *
-	 * The panel keeps the box it built last time and only builds a new one
+	 * The panel keeps the card it built last time and only builds a new one
 	 * when this changes, because an item's picture is made per quantity and
 	 * rebuilding on every tick meant the whole party flickering. Anything
 	 * drawn has to be in here or a change to it would go unseen.
@@ -248,22 +262,22 @@ public class PartyMate
 	{
 		StringBuilder out = new StringBuilder(getName())
 			.append('|').append(tab)
-			.append('|').append(loggedIn)
-			.append('|').append(combat).append('|').append(world)
-			.append('|').append(spellbook)
-			.append('|').append(health).append('/').append(healthMax)
-			.append('|').append(prayer).append('/').append(prayerMax)
-			.append('|').append(run).append('|').append(spec);
+			.append('|').append(isLoggedIn())
+			.append('|').append(getCombat()).append('|').append(getWorld())
+			.append('|').append(getSpellbook())
+			.append('|').append(getHealth()).append('/').append(getHealthMax())
+			.append('|').append(getPrayer()).append('/').append(getPrayerMax())
+			.append('|').append(getRun()).append('|').append(getSpec());
 
 		/*
 		 * Only what the open tab shows.
 		 *
-		 * Flicking a prayer must not rebuild a box showing an inventory, and
-		 * a folded card, which is -1 here, shows no grid at all and so is
-		 * not changed by anything in one.
+		 * Flicking a prayer must not rebuild a card showing an inventory, and
+		 * a folded card, which is -1 here, shows no grid at all and so is not
+		 * changed by anything in one.
 		 */
-		int[] shown = tab == 1 ? worn : tab == 2 ? prayers : tab == 3 ? boosted
-			: tab == 0 ? carried : new int[0];
+		int[] shown = tab == 1 ? getWorn() : tab == 2 ? getPrayers()
+			: tab == 3 ? getBoosted() : tab == 0 ? getCarried() : new int[0];
 		for (int value : shown)
 		{
 			out.append('|').append(value);
