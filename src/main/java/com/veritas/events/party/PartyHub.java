@@ -479,6 +479,12 @@ public class PartyHub
 	 *
 	 * Short, plainly spelt, and nothing that sounds like anything else when
 	 * said down a voice channel, which is how most of these get shared.
+	 *
+	 * There are enough of them that three picked at random are very unlikely
+	 * to be three somebody else is already using. That matters more here
+	 * than it looks: two groups landing on one phrase land in one party, and
+	 * a party that quietly fills up with people nobody invited is the thing
+	 * this panel was built to stop happening.
 	 */
 	private static final String[] WORDS = {
 		"amber", "anchor", "arrow", "badger", "bramble", "brass", "cedar",
@@ -486,7 +492,20 @@ public class PartyHub
 		"garnet", "granite", "harbour", "heron", "ivory", "jasper", "kestrel",
 		"lantern", "marble", "meadow", "onyx", "otter", "pewter", "quarry",
 		"raven", "saffron", "slate", "sparrow", "teal", "thistle", "timber",
-		"velvet", "walnut", "willow",
+		"velvet", "walnut", "willow", "acorn", "almond", "anvil", "aspen",
+		"basalt", "beacon", "birch", "bison", "bonfire", "boulder", "bracken",
+		"bronze", "bucket", "burrow", "canvas", "cavern", "chestnut", "clover",
+		"cobalt", "compass", "coral", "cotton", "cypress", "daisy", "driftwood",
+		"fennel", "fern", "forge", "fossil", "gable", "ginger", "glacier",
+		"gorse", "gravel", "hazel", "hollow", "hornet", "indigo", "juniper",
+		"kettle", "lagoon", "lilac", "linen", "magnet", "mallard", "maple",
+		"marigold", "marsh", "moss", "nettle", "nutmeg", "oats", "orchard",
+		"osprey", "parsnip", "peat", "pebble", "pelican", "pepper", "pigeon",
+		"pine", "plum", "quartz", "quince", "rafter", "reed", "ridge", "rust",
+		"sage", "sawdust", "scarlet", "shale", "sorrel", "spruce", "starling",
+		"swallow", "tallow", "thatch", "thorn", "thrush", "tulip", "turnip",
+		"vellum", "violet", "walrus", "warren", "weasel", "wheat", "wicker",
+		"wren", "yarrow", "yew",
 	};
 
 	private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
