@@ -7,9 +7,13 @@ package com.veritas.events.party;
 
 import com.veritas.events.VeritasEventsConfig;
 import java.awt.Color;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 import javax.inject.Inject;
@@ -17,17 +21,22 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.Skill;
 import net.runelite.api.SoundEffectID;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.party.PartyDataService;
+import net.runelite.client.party.PartyDataType;
 import net.runelite.client.party.PartyMember;
 import net.runelite.client.party.PartyService;
 import net.runelite.client.party.WSClient;
 import net.runelite.client.party.events.UserPart;
+import net.runelite.client.party.messages.PartyData;
 import net.runelite.client.plugins.party.messages.MemberColorUpdate;
+import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.party.messages.TilePing;
 import net.runelite.client.util.Text;
 
@@ -63,6 +72,9 @@ public class PartyHub
 	private WSClient ws;
 
 	@Inject
+	private PartyDataService partyData;
+
+	@Inject
 	private EventBus eventBus;
 
 	@Inject
@@ -73,6 +85,18 @@ public class PartyHub
 
 	/** The colour each member picked for themselves. */
 	private final Map<Long, Color> colors = new HashMap<>();
+
+	/**
+	 * The phrase as people say it, for the party we are actually in.
+	 *
+	 * Not the same string as the party we joined: see {@link #roomOf}. This
+	 * is the one that gets shown and copied, because it is the one somebody
+	 * can read out.
+	 */
+	private String spoken = "";
+
+	/** Subscribed as, so the same plugin can be unsubscribed on the way out. */
+	private Plugin asPlugin;
 
 	/** The last of each thing sent, so an unchanged one is never resent. */
 	private int sentWorld;
@@ -107,12 +131,30 @@ public class PartyHub
 	 */
 	private BooleanSupplier standingIn = () -> true;
 
-	public void start(Runnable onChange, PingSeen onPing, BooleanSupplier standingIn)
+	public void start(Plugin plugin, Runnable onChange, PingSeen onPing,
+		BooleanSupplier standingIn)
 	{
+		this.asPlugin = plugin;
 		this.onChange = onChange;
 		this.onPing = onPing;
 		this.standingIn = standingIn;
+		this.spoken = lastParty();
 		ws.registerMessage(VeritasExtras.class);
+
+		/*
+		 * Ask for the things the panel draws.
+		 *
+		 * Nothing is sent for a kind of data until some plugin has asked for
+		 * it, so without this the cards sit empty whenever the built-in Party
+		 * plugin is switched off, which is the case this panel exists for.
+		 * The four it does not ask for are coordinates, which the overlay
+		 * does not need because it finds people by name, and vengeance, rune
+		 * pouch and quiver, which it does not draw.
+		 */
+		partyData.subscribe(plugin, PartyDataType.CHARACTER_NAME, PartyDataType.INV,
+			PartyDataType.WORN, PartyDataType.ACTIVE_PRAYERS, PartyDataType.ENERGY,
+			PartyDataType.SPEC);
+		partyData.subscribe(plugin, Skill.values());
 
 		/*
 		 * TilePing and MemberColorUpdate are registered by the built-in Party
@@ -130,12 +172,20 @@ public class PartyHub
 	{
 		eventBus.unregister(this);
 
+		if (asPlugin != null)
+		{
+			partyData.unsubscribe(asPlugin, PartyDataType.values());
+			partyData.unsubscribe(asPlugin, Skill.values());
+			asPlugin = null;
+		}
+
 		// only ours. TilePing and MemberColorUpdate may belong to the
 		// built-in Party plugin as well, and pulling them out from under it
 		// would break it; leaving them registered costs nothing.
 		ws.unregisterMessage(VeritasExtras.class);
 		extras.clear();
 		colors.clear();
+		spoken = "";
 		forget();
 	}
 
@@ -150,10 +200,64 @@ public class PartyHub
 		return party.isInParty();
 	}
 
+	/**
+	 * The passphrase to show, which is the one somebody could say out loud.
+	 *
+	 * The party we are actually in is named after it rather than by it, so
+	 * the raw name is forty characters of hex and no use to anybody. If it
+	 * is not the one our phrase maps to then this party was joined somewhere
+	 * other than here, and the raw name is the only true answer we have.
+	 */
 	public String passphrase()
 	{
-		String said = party.getPartyPassphrase();
-		return said == null ? "" : said;
+		String room = party.getPartyPassphrase();
+		if (room == null || room.isEmpty())
+		{
+			return "";
+		}
+		return room.equals(roomOf(spoken)) ? spoken : room;
+	}
+
+	/**
+	 * The party a spoken phrase names.
+	 *
+	 * A Veritas party is a room nobody can type their way into. The phrase
+	 * people share is run through SHA-256 with a word of our own in front of
+	 * it, and the result is what gets joined, so somebody entering the same
+	 * phrase into RuneLite's own party panel lands in a different room and
+	 * sees nobody. It takes the plugin to work out where everyone went.
+	 *
+	 * This is a gate on running Veritas, not on being in the clan: anybody
+	 * holding the phrase and the plugin still gets in, which is what a
+	 * passphrase is for.
+	 */
+	static String roomOf(String spoken)
+	{
+		String said = spoken.trim().toLowerCase(Locale.ROOT);
+		if (said.isEmpty())
+		{
+			return "";
+		}
+
+		byte[] sum;
+		try
+		{
+			sum = MessageDigest.getInstance("SHA-256")
+				.digest((ROOM_SALT + said).getBytes(StandardCharsets.UTF_8));
+		}
+		catch (NoSuchAlgorithmException never)
+		{
+			// every Java runtime is required to carry SHA-256
+			throw new IllegalStateException(never);
+		}
+
+		StringBuilder room = new StringBuilder("veritas-");
+		for (int n = 0; n < ROOM_BYTES; n++)
+		{
+			room.append(Character.forDigit((sum[n] >> 4) & 0xf, 16))
+				.append(Character.forDigit(sum[n] & 0xf, 16));
+		}
+		return room.toString();
 	}
 
 	/** The last passphrase joined, for getting back into it. */
@@ -192,9 +296,11 @@ public class PartyHub
 			return;
 		}
 
-		party.changeParty(said);
+		spoken = said;
+		party.changeParty(roomOf(said));
 		// remembered now rather than on leaving, because a client that is
-		// closed mid raid never leaves
+		// closed mid raid never leaves. The phrase, not the room: the room
+		// can always be worked out again and nobody can read it out.
 		config.setPartyPrevious(said);
 		forget();
 		onChange.run();
@@ -205,6 +311,7 @@ public class PartyHub
 		party.changeParty(null);
 		extras.clear();
 		colors.clear();
+		spoken = "";
 		forget();
 		onChange.run();
 	}
@@ -307,6 +414,24 @@ public class PartyHub
 		onChange.run();
 	}
 
+	/**
+	 * Somebody's supplies, prayers, levels or energy moving.
+	 *
+	 * The party applies this to the member itself; all we do is redraw,
+	 * because the panel reads the member rather than keeping its own copy.
+	 * Without this the cards hold whatever they were built with and a health
+	 * bar stays where it was while the person it belongs to is being hit.
+	 *
+	 * Redrawing settles for a moment first, so this arriving before the
+	 * party has finished applying it still draws the new figures, and five
+	 * people moving at once is still one rebuild.
+	 */
+	@Subscribe
+	public void onPartyData(PartyData said)
+	{
+		onChange.run();
+	}
+
 	@Subscribe
 	public void onMemberColorUpdate(MemberColorUpdate said)
 	{
@@ -365,4 +490,13 @@ public class PartyHub
 	};
 
 	private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
+	/**
+	 * Mixed into a phrase before it is hashed, so the room a phrase names
+	 * here is not the room the same phrase would name anywhere else.
+	 */
+	private static final String ROOM_SALT = "veritas-party-v1:";
+
+	/** Half of the hash is already far more than anybody could guess. */
+	private static final int ROOM_BYTES = 16;
 }

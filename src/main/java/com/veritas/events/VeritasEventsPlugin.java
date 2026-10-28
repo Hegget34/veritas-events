@@ -279,7 +279,7 @@ public class VeritasEventsPlugin extends Plugin
 		 * time rather than decided here, because somebody can switch it on
 		 * halfway through an evening and the answer has to change with them.
 		 */
-		party.start(() -> partyPanel.drawSoon(), partyOverlay::ping, this::corePartyOff);
+		party.start(this, () -> partyPanel.drawSoon(), partyOverlay::ping, this::corePartyOff);
 		overlayManager.add(partyOverlay);
 		keyManager.registerKeyListener(partyPings);
 		mouseManager.registerMouseListener(partyPings);

@@ -183,11 +183,18 @@ class VeritasPartyPanel extends JPanel
 	}
 
 	/**
-	 * Redraws once things have stopped arriving.
+	 * Redraws, at most this often.
 	 *
 	 * Five people in a raid produce updates faster than a panel can sensibly
 	 * be rebuilt. Anything the person themselves clicks still redraws at
 	 * once; this is only for what turns up on its own.
+	 *
+	 * The wait is left to run rather than restarted. Restarting it waits for
+	 * a quiet moment, and a party in the middle of a fight does not have
+	 * one: every update pushed the redraw further out and the figures sat
+	 * still exactly when they were worth watching. Letting it run puts a
+	 * floor under how often the panel is rebuilt instead of a condition on
+	 * whether it ever is.
 	 */
 	void drawSoon()
 	{
@@ -198,7 +205,10 @@ class VeritasPartyPanel extends JPanel
 				settling = new Timer(250, e -> draw());
 				settling.setRepeats(false);
 			}
-			settling.restart();
+			if (!settling.isRunning())
+			{
+				settling.start();
+			}
 		});
 	}
 
@@ -241,7 +251,7 @@ class VeritasPartyPanel extends JPanel
 		if (!hub.isInParty())
 		{
 			JButton create = wide("Create party");
-			create.setToolTipText("Start one and hand the phrase around");
+			create.setToolTipText("Start one and hand the phrase around. Only people running Veritas can join it");
 			create.addActionListener(e -> createParty());
 			controls.add(create);
 			controls.add(Box.createVerticalStrut(4));
@@ -459,7 +469,7 @@ class VeritasPartyPanel extends JPanel
 		JLabel name = new JLabel(who);
 		// a size up on everything around it, because the name is what tells
 		// you whose supplies you are looking at
-		name.setFont(FontManager.getRunescapeBoldFont().deriveFont(17f));
+		name.setFont(FontManager.getRunescapeBoldFont().deriveFont(18f));
 		name.setForeground(mate.isLoggedIn() ? VeritasEventsPanel.BONE : Color.GRAY);
 		name.setToolTipText(who);
 
@@ -478,7 +488,7 @@ class VeritasPartyPanel extends JPanel
 			JLabel level = new JLabel("(" + mate.getCombat() + ")");
 			// one size under the name and the same color as it: a
 			// parenthetical rather than a different kind of thing
-			level.setFont(FontManager.getRunescapeFont().deriveFont(15f));
+			level.setFont(FontManager.getRunescapeFont().deriveFont(16f));
 			level.setForeground(mate.isLoggedIn() ? VeritasEventsPanel.BONE : Color.GRAY);
 			level.setToolTipText("Combat level");
 			line.add(level);
