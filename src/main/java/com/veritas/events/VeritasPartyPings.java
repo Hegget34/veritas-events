@@ -33,8 +33,13 @@ class VeritasPartyPings implements KeyListener
 	private final VeritasEventsConfig config;
 	private final PartyHub party;
 
-	/** Whether the hotkey is down right now. */
-	private boolean held;
+	/**
+	 * Whether the hotkey is down right now.
+	 *
+	 * Written on the window's own thread, where keys arrive, and read on
+	 * the client's thread, where clicks do, so the two have to agree on it.
+	 */
+	private volatile boolean held;
 
 	@Inject
 	VeritasPartyPings(Client client, VeritasEventsConfig config, PartyHub party)

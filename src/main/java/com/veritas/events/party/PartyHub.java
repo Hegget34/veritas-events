@@ -196,6 +196,16 @@ public class PartyHub
 		borrowed();
 	}
 
+	/**
+	 * Put down everything start picked up.
+	 *
+	 * What everyone else told us is deliberately left where it is. A
+	 * colour and a world are sent once and then only when they change, so
+	 * emptying those here meant switching this plugin off and on again mid
+	 * raid left the whole party grey until somebody happened to change
+	 * something. Entries for people who have since left are never read:
+	 * the panel asks the party who is in it and only then looks them up.
+	 */
 	public void stop()
 	{
 		eventBus.unregister(this);
@@ -211,8 +221,6 @@ public class PartyHub
 		// built-in Party plugin as well, and pulling them out from under it
 		// would break it; leaving them registered costs nothing.
 		ws.unregisterMessage(VeritasExtras.class);
-		extras.clear();
-		colors.clear();
 		spoken = "";
 		forget();
 	}
@@ -326,6 +334,10 @@ public class PartyHub
 
 		spoken = said;
 		party.changeParty(roomOf(said));
+		// a different party is different people, so nothing we were told in
+		// the last one is worth keeping
+		extras.clear();
+		colors.clear();
 		// remembered now rather than on leaving, because a client that is
 		// closed mid raid never leaves. The phrase, not the room: the room
 		// can always be worked out again and nobody can read it out.
