@@ -350,10 +350,48 @@ public class PartyHub
 		// whatever they happen to be running
 		party.send(new TilePing(where));
 
-		// shown here at once rather than waiting for it to come back round
+		if (!standingIn.getAsBoolean())
+		{
+			// the built-in Party plugin is drawing this one and making its
+			// own noise about it; two of each is worse than one
+			return;
+		}
+
+		/*
+		 * Your own ping, marked and sounded here rather than waited for.
+		 *
+		 * What you send does not come back round to you, so this is the
+		 * only place it can happen. It used to only draw, which is why the
+		 * sound worked for everyone else's pings and never for your own.
+		 */
 		PartyMember me = party.getLocalMember();
 		onPing.at(where, config.partyColor(),
 			me == null ? "" : Text.sanitize(String.valueOf(me.getDisplayName())));
+		boop(where);
+	}
+
+	/**
+	 * The noise a ping makes, if it is wanted and the tile is in sight.
+	 *
+	 * Party messages arrive on the websocket's own thread, and the client is
+	 * not something to call from there. A tile two floors up is not worth a
+	 * sound, which is the same line the built-in plugin draws.
+	 */
+	private void boop(WorldPoint where)
+	{
+		if (!config.partyPingSound())
+		{
+			return;
+		}
+
+		clientThread.invoke(() ->
+		{
+			if (where.getPlane() == client.getPlane()
+				&& WorldPoint.isInScene(client, where.getX(), where.getY()))
+			{
+				client.playSoundEffect(SoundEffectID.UI_BOOP);
+			}
+		});
 	}
 
 	private void forget()
@@ -460,30 +498,19 @@ public class PartyHub
 			return;
 		}
 
+		PartyMember me = party.getLocalMember();
+		if (me != null && me.getMemberId() == ping.getMemberId())
+		{
+			// ours, already marked and sounded when it was sent. Guarded
+			// rather than assumed, so a server that does echo cannot give
+			// us two rings and two noises for one click.
+			return;
+		}
+
 		PartyMember from = party.getMemberById(ping.getMemberId());
 		onPing.at(ping.getPoint(), colors.get(ping.getMemberId()),
 			from == null ? "" : Text.sanitize(String.valueOf(from.getDisplayName())));
-
-		/*
-		 * Onto the client thread to make the noise.
-		 *
-		 * Party messages arrive on the websocket's own thread, and the
-		 * client is not something to call from there. Only for a ping you
-		 * could actually have seen, as the built-in plugin does: a tile two
-		 * floors up is not worth a sound.
-		 */
-		if (config.partyPingSound())
-		{
-			WorldPoint where = ping.getPoint();
-			clientThread.invoke(() ->
-			{
-				if (where.getPlane() == client.getPlane()
-					&& WorldPoint.isInScene(client, where.getX(), where.getY()))
-				{
-					client.playSoundEffect(SoundEffectID.UI_BOOP);
-				}
-			});
-		}
+		boop(ping.getPoint());
 	}
 
 	@Subscribe
