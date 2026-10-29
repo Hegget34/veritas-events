@@ -11,10 +11,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -26,6 +26,7 @@ import net.runelite.api.SoundEffectID;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.party.PartyDataService;
@@ -75,16 +76,19 @@ public class PartyHub
 	private PartyDataService partyData;
 
 	@Inject
+	private ClientThread clientThread;
+
+	@Inject
 	private EventBus eventBus;
 
 	@Inject
 	private VeritasEventsConfig config;
 
 	/** The world and spellbook of everyone who has told us, by member id. */
-	private final Map<Long, VeritasExtras> extras = new HashMap<>();
+	private final Map<Long, VeritasExtras> extras = new ConcurrentHashMap<>();
 
 	/** The colour each member picked for themselves. */
-	private final Map<Long, Color> colors = new HashMap<>();
+	private final Map<Long, Color> colors = new ConcurrentHashMap<>();
 
 	/**
 	 * The phrase as people say it, for the party we are actually in.
@@ -460,9 +464,25 @@ public class PartyHub
 		onPing.at(ping.getPoint(), colors.get(ping.getMemberId()),
 			from == null ? "" : Text.sanitize(String.valueOf(from.getDisplayName())));
 
+		/*
+		 * Onto the client thread to make the noise.
+		 *
+		 * Party messages arrive on the websocket's own thread, and the
+		 * client is not something to call from there. Only for a ping you
+		 * could actually have seen, as the built-in plugin does: a tile two
+		 * floors up is not worth a sound.
+		 */
 		if (config.partyPingSound())
 		{
-			client.playSoundEffect(SoundEffectID.UI_BOOP);
+			WorldPoint where = ping.getPoint();
+			clientThread.invoke(() ->
+			{
+				if (where.getPlane() == client.getPlane()
+					&& WorldPoint.isInScene(client, where.getX(), where.getY()))
+				{
+					client.playSoundEffect(SoundEffectID.UI_BOOP);
+				}
+			});
 		}
 	}
 

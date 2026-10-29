@@ -7,19 +7,19 @@ package com.veritas.events;
 
 import com.veritas.events.party.PartyHub;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
 import javax.inject.Inject;
 import net.runelite.api.Client;
+import net.runelite.api.MenuAction;
 import net.runelite.api.Tile;
+import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.input.KeyListener;
-import net.runelite.client.input.MouseAdapter;
 
 /**
  * Hold a key, click the ground, and the party sees the tile.
  *
- * Two listeners rather than one, because the key and the click arrive
- * separately and the interesting state is the overlap between them: the key
- * being down at the moment the mouse goes down.
+ * The key and the click arrive separately, and the interesting state is the
+ * overlap between them: the key being down at the moment of the click.
  *
  * The ping is sent as RuneLite's own TilePing rather than a message of our
  * own, deliberately. It means a Veritas ping lands on the screen of
@@ -27,7 +27,7 @@ import net.runelite.client.input.MouseAdapter;
  * so the clan is not split into people whose pings work on each other and
  * people whose do not.
  */
-class VeritasPartyPings extends MouseAdapter implements KeyListener
+class VeritasPartyPings implements KeyListener
 {
 	private final Client client;
 	private final VeritasEventsConfig config;
@@ -80,24 +80,38 @@ class VeritasPartyPings extends MouseAdapter implements KeyListener
 		held = false;
 	}
 
-	@Override
-	public MouseEvent mousePressed(MouseEvent event)
+	/**
+	 * The click that marks the tile.
+	 *
+	 * Taken off the menu rather than off the mouse. A mouse listener runs on
+	 * the window's own thread, and the hovered tile read from there is the
+	 * scene read while the game is in the middle of changing it. This
+	 * arrives on the client's thread with the click already worked out.
+	 *
+	 * Only a plain walk is ever taken, so holding the key and clicking an
+	 * NPC still attacks it and clicking an item still picks it up. The walk
+	 * itself is eaten, because marking a tile for somebody else is not a
+	 * reason to go and stand on it.
+	 */
+	@Subscribe
+	public void onMenuOptionClicked(MenuOptionClicked event)
 	{
-		if (!held || !config.partyPings() || !party.isInParty())
+		if (!held
+			|| event.getMenuAction() != MenuAction.WALK
+			|| client.isMenuOpen()
+			|| !config.partyPings()
+			|| !party.isInParty())
 		{
-			return event;
+			return;
 		}
 
 		Tile tile = client.getSelectedSceneTile();
 		if (tile == null)
 		{
-			return event;
+			return;
 		}
 
-		party.ping(tile.getWorldLocation());
-
-		// eaten, so the click that marked the tile does not also walk you onto it
 		event.consume();
-		return event;
+		party.ping(tile.getWorldLocation());
 	}
 }

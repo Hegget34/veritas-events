@@ -53,6 +53,7 @@ import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.PlayerLootReceived;
@@ -61,7 +62,6 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyManager;
-import net.runelite.client.input.MouseManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.PluginManager;
@@ -193,7 +193,7 @@ public class VeritasEventsPlugin extends Plugin
 	private KeyManager keyManager;
 
 	@Inject
-	private MouseManager mouseManager;
+	private EventBus eventBus;
 
 	private VeritasEventsPanel panel;
 	private VeritasPartyPanel partyPanel;
@@ -282,7 +282,7 @@ public class VeritasEventsPlugin extends Plugin
 		party.start(this, () -> partyPanel.drawSoon(), partyOverlay::ping, this::corePartyOff);
 		overlayManager.add(partyOverlay);
 		keyManager.registerKeyListener(partyPings);
-		mouseManager.registerMouseListener(partyPings);
+		eventBus.register(partyPings);
 
 		refresh();
 		reschedule();
@@ -297,7 +297,7 @@ public class VeritasEventsPlugin extends Plugin
 			refresher = null;
 		}
 		party.stop();
-		mouseManager.unregisterMouseListener(partyPings);
+		eventBus.unregister(partyPings);
 		keyManager.unregisterKeyListener(partyPings);
 		overlayManager.remove(partyOverlay);
 		overlayManager.remove(overlay);

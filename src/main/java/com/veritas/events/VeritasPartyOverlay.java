@@ -12,10 +12,10 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import net.runelite.api.Client;
@@ -73,7 +73,12 @@ class VeritasPartyOverlay extends Overlay
 	 * animation; kept separately they overlap, their fills add up, and the
 	 * tile goes solid while you are clicking and thins out as each expires.
 	 */
-	private final List<Ping> pings = new ArrayList<>();
+	/*
+	 * Written from the websocket thread and read while the scene is being
+	 * drawn, so it cannot be a plain list. Pings are few and arrive only
+	 * when somebody clicks, which is what this one is good at.
+	 */
+	private final List<Ping> pings = new CopyOnWriteArrayList<>();
 
 	/** One ping: where, when, whose color, and whose name. */
 	private static final class Ping
@@ -163,7 +168,7 @@ class VeritasPartyOverlay extends Overlay
 		pings.removeIf((one) -> now - one.at > PING_MILLIS);
 
 		Stroke was = graphics.getStroke();
-		for (Ping ping : new ArrayList<>(pings))
+		for (Ping ping : pings)
 		{
 			LocalPoint local = LocalPoint.fromWorld(client.getTopLevelWorldView(), ping.where);
 			if (local == null)
