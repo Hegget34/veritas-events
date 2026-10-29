@@ -29,6 +29,7 @@ import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.PluginChanged;
 import net.runelite.client.party.PartyDataService;
 import net.runelite.client.party.PartyDataType;
 import net.runelite.client.party.PartyMember;
@@ -160,16 +161,38 @@ public class PartyHub
 			PartyDataType.SPEC);
 		partyData.subscribe(plugin, Skill.values());
 
-		/*
-		 * TilePing and MemberColorUpdate are registered by the built-in Party
-		 * plugin, and we tell people to switch that off. Registered here as
-		 * well so they still arrive when it is not running, which is exactly
-		 * the case this panel exists for.
-		 */
-		ws.registerMessage(TilePing.class);
-		ws.registerMessage(MemberColorUpdate.class);
+		borrowed();
 
 		eventBus.register(this);
+	}
+
+	/**
+	 * Claim the two messages the built-in Party plugin also owns.
+	 *
+	 * Registering is a map keyed on the class's short name, so saying it
+	 * twice is saying it once. Unregistering is the same key removed, which
+	 * means that plugin shutting down takes our registration with it and
+	 * pings quietly stop arriving. Switching it off is exactly what we tell
+	 * people to do, so this has to be claimed again every time anything is
+	 * switched on or off rather than once at the start.
+	 */
+	private void borrowed()
+	{
+		ws.registerMessage(TilePing.class);
+		ws.registerMessage(MemberColorUpdate.class);
+	}
+
+	/**
+	 * Something was switched on or off, possibly the Party plugin.
+	 *
+	 * Cheap enough to do for any of them: it is two map entries, and
+	 * working out whether this particular one mattered costs more than
+	 * putting them back.
+	 */
+	@Subscribe
+	public void onPluginChanged(PluginChanged changed)
+	{
+		borrowed();
 	}
 
 	public void stop()
