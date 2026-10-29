@@ -20,6 +20,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -69,7 +70,43 @@ class VeritasPartyPanel extends JPanel
 	/** The inventory is four across, so this is too, and things sit where they do in game. */
 	private static final int CARRIED_COLUMNS = 4;
 	private static final int PRAYER_COLUMNS = 5;
-	private static final int CELL = 36;
+
+	/** Stats go three across, as the game's own tab does. */
+	private static final int LEVEL_COLUMNS = 3;
+
+	/**
+	 * Room for a tab picture, the rule that marks the open one, and air.
+	 *
+	 * Thirty for the picture, four for the border, and three above and below
+	 * so the icon sits in the tab rather than against the edges of it.
+	 */
+	private static final int TAB_HEIGHT = 40;
+
+	/**
+	 * How big one slot is.
+	 *
+	 * Square, and the size the game draws an item at with room around it.
+	 * It was smaller and flatter than a square, which packed more card onto
+	 * the screen and made every grid harder to read than the inventory it
+	 * was standing in for.
+	 */
+	private static final int CELL = 40;
+
+	/**
+	 * How tall the open part of a card is, whichever tab is showing.
+	 *
+	 * Every tab holds a different number of rows, so left to themselves they
+	 * came out different heights and the whole list jumped every time
+	 * somebody flicked a tab. They are all drawn into this instead, and each
+	 * one divides it between the rows it has, so the inventory's seven and
+	 * the gear's five fill the same space at different sizes.
+	 *
+	 * Seven rows of inventory, which is the one nobody would want smaller.
+	 */
+	private static final int CONTENT = 7 * CELL;
+
+	/** The total level bar under the stats tab, which comes out of CONTENT. */
+	private static final int TOTAL_BAR = 20;
 
 	/**
 	 * The one gap this panel uses.
@@ -250,16 +287,15 @@ class VeritasPartyPanel extends JPanel
 
 		if (!hub.isInParty())
 		{
-			JButton create = wide("Create party");
-			create.setToolTipText("Start one and hand the phrase around. Only people running Veritas can join it");
+			JButton create = narrow("Create party");
+			create.setToolTipText("Start one and hand the phrase around. "
+				+ "Only people running Veritas can join it");
 			create.addActionListener(e -> createParty());
-			controls.add(create);
-			controls.add(Box.createVerticalStrut(4));
 
-			JButton join = wide("Join party");
+			JButton join = narrow("Join party");
 			join.setToolTipText("Type in a phrase somebody gave you");
 			join.addActionListener(e -> joinParty());
-			controls.add(join);
+			controls.add(pair(create, join));
 
 			String before = hub.lastParty();
 			if (!before.isEmpty())
@@ -283,7 +319,7 @@ class VeritasPartyPanel extends JPanel
 		 * It is on the Party heading below, and one string printed twice on
 		 * one panel is one of them wasted.
 		 */
-		JButton copy = wide("Copy passphrase");
+		JButton copy = narrow("Copy passphrase");
 		copy.addActionListener(e ->
 		{
 			Toolkit.getDefaultToolkit().getSystemClipboard()
@@ -293,16 +329,44 @@ class VeritasPartyPanel extends JPanel
 			back.setRepeats(false);
 			back.start();
 		});
-		controls.add(copy);
-		controls.add(Box.createVerticalStrut(4));
-
-		JButton leave = wide("Leave party");
+		JButton leave = narrow("Leave party");
 		leave.addActionListener(e ->
 		{
 			hub.leave();
 			draw();
 		});
-		controls.add(leave);
+
+		/*
+		 * Side by side rather than stacked.
+		 *
+		 * Every row above the party is a row of party nobody can see, and
+		 * eight people is already more scrolling than anybody wants. Two
+		 * short labels fit across the panel, so they go across it.
+		 */
+		controls.add(pair(leave, copy));
+	}
+
+	/** Two buttons across the panel, sharing the width evenly. */
+	private static JPanel pair(JButton left, JButton right)
+	{
+		JPanel row = new JPanel(new GridLayout(1, 2, 4, 0));
+		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		row.setAlignmentX(Component.LEFT_ALIGNMENT);
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+		row.add(left);
+		row.add(right);
+		return row;
+	}
+
+	/** A button meant to sit beside another, so it does not claim the row. */
+	private static JButton narrow(String text)
+	{
+		JButton button = wide(text);
+		button.setMaximumSize(null);
+		button.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(1, 1, 1, 1, VeritasEventsPanel.TEAL_D),
+			BorderFactory.createEmptyBorder(4, 2, 4, 2)));
+		return button;
 	}
 
 	/**
@@ -430,7 +494,15 @@ class VeritasPartyPanel extends JPanel
 		box.setBorder(BorderFactory.createCompoundBorder(
 			BorderFactory.createMatteBorder(1, 3, 1, 1,
 				mate.isLoggedIn() ? VeritasEventsPanel.TEAL_D : ColorScheme.DARK_GRAY_COLOR),
-			BorderFactory.createEmptyBorder(GAP, GAP, GAP, GAP)));
+			/*
+			 * Thin at the sides, ordinary top and bottom.
+			 *
+			 * A panel is 225 across and a scrollbar takes 17 of them, so
+			 * every pixel spent on a margin here is a pixel the grids do
+			 * not get. Down the sides it buys nothing: the card already has
+			 * a coloured edge saying where it starts.
+			 */
+			BorderFactory.createEmptyBorder(GAP, 2, GAP, 2)));
 
 		box.add(head(mate, shut), BorderLayout.NORTH);
 
@@ -611,10 +683,18 @@ class VeritasPartyPanel extends JPanel
 	 */
 	private JPanel tabs(PartyMate mate, int open)
 	{
+		/*
+		 * Tall enough for the pictures in it.
+		 *
+		 * The game's tab icons are about thirty across and thirty tall, and
+		 * this row was twenty eight high with four of those going on border,
+		 * so every icon lost its top and bottom.
+		 */
 		JPanel row = new JPanel(new GridLayout(1, TAB_SPRITES.length, 3, 0));
 		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		row.setAlignmentX(Component.LEFT_ALIGNMENT);
-		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+		row.setPreferredSize(new Dimension(CELL * TAB_SPRITES.length, TAB_HEIGHT));
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, TAB_HEIGHT));
 
 		for (int n = 0; n < TAB_SPRITES.length; n++)
 		{
@@ -626,8 +706,10 @@ class VeritasPartyPanel extends JPanel
 			tab.setVerticalAlignment(SwingConstants.CENTER);
 			tab.setOpaque(true);
 			tab.setBackground(on ? VeritasEventsPanel.TEAL_SEAT : ColorScheme.DARK_GRAY_COLOR);
-			tab.setBorder(BorderFactory.createMatteBorder(1, 1, 3, 1,
-				on ? VeritasEventsPanel.BRASS : ColorScheme.DARKER_GRAY_COLOR));
+			tab.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createMatteBorder(1, 1, 3, 1,
+					on ? VeritasEventsPanel.BRASS : ColorScheme.DARKER_GRAY_COLOR),
+				BorderFactory.createEmptyBorder(3, 0, 3, 0)));
 			tab.setToolTipText(TAB_NAMES[n]);
 			tab.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
 			spriteManager.addSpriteTo(tab, TAB_SPRITES[n], 0);
@@ -701,44 +783,105 @@ class VeritasPartyPanel extends JPanel
 
 	private JPanel prayers(PartyMate mate)
 	{
-		int[] lit = mate.getPrayers();
-		if (lit.length == 0)
+		Prayer[] all = Prayer.values();
+		Set<Prayer> on = EnumSet.noneOf(Prayer.class);
+		boolean ruinous = false;
+		for (int ordinal : mate.getPrayers())
 		{
-			return nothing("No prayers on.");
+			if (ordinal >= 0 && ordinal < all.length)
+			{
+				on.add(all[ordinal]);
+				ruinous |= isRuinous(all[ordinal]);
+			}
 		}
 
-		Prayer[] all = Prayer.values();
-		int rows = (lit.length + PRAYER_COLUMNS - 1) / PRAYER_COLUMNS;
+		Prayer[] book = ruinous ? RUINOUS : STANDARD;
+		int rows = (book.length + PRAYER_COLUMNS - 1) / PRAYER_COLUMNS;
 		JPanel grid = grid(rows, PRAYER_COLUMNS);
 
 		for (int n = 0; n < rows * PRAYER_COLUMNS; n++)
 		{
-			if (n >= lit.length || lit[n] < 0 || lit[n] >= all.length)
+			if (n >= book.length)
 			{
 				grid.add(blank(false));
 				continue;
 			}
-
-			Prayer prayer = all[lit[n]];
-			JLabel icon = emptyCell();
-			icon.setToolTipText(pretty(prayer.name()));
-
-			int sprite = PrayerIcons.spriteFor(prayer);
-			if (sprite >= 0)
-			{
-				spriteManager.addSpriteTo(icon, sprite, 0);
-			}
-			else
-			{
-				// no picture in this client, so it says what it is instead
-				icon.setText(pretty(prayer.name()).substring(0, 2));
-				icon.setFont(FontManager.getRunescapeSmallFont());
-				icon.setForeground(VeritasEventsPanel.BRASS);
-			}
-			grid.add(icon);
+			grid.add(prayerCell(book[n], on.contains(book[n])));
 		}
 		return grid;
 	}
+
+	/**
+	 * One prayer, lit or not.
+	 *
+	 * The whole book is drawn either way, as the game draws it, because a
+	 * grid of only the prayers somebody has on tells you nothing about the
+	 * ones they have not and moves every time they flick one.
+	 */
+	private JLabel prayerCell(Prayer prayer, boolean lit)
+	{
+		JLabel icon = emptyCell();
+		icon.setToolTipText(pretty(prayer.name()) + (lit ? " (on)" : ""));
+
+		/*
+		 * Every prayer drawn bright, and the lit ones boxed.
+		 *
+		 * The client carries a dimmed picture of each prayer for the ones
+		 * you do not have on, and at this size they went nearly black: the
+		 * book stopped being readable at a glance, which is the only thing
+		 * it is for. So the bright picture throughout, and the square around
+		 * it does the saying, the way the game marks the one you are on.
+		 */
+		if (lit)
+		{
+			icon.setBackground(VeritasEventsPanel.TEAL_SEAT);
+			icon.setBorder(BorderFactory.createMatteBorder(2, 2, 2, 2,
+				VeritasEventsPanel.BRASS));
+		}
+
+		int sprite = PrayerIcons.spriteFor(prayer);
+		if (sprite >= 0)
+		{
+			spriteManager.addSpriteTo(icon, sprite, 0);
+		}
+		else
+		{
+			// no picture in this client, so it says what it is instead
+			icon.setText(pretty(prayer.name()).substring(0, 2));
+			icon.setFont(FontManager.getRunescapeSmallFont());
+			icon.setForeground(lit ? VeritasEventsPanel.BRASS : Color.GRAY);
+		}
+		return icon;
+	}
+
+	/**
+	 * The two prayer books, taken from the client rather than typed out.
+	 *
+	 * The client names every Ruinous Powers prayer with the same prefix, so
+	 * the standard book is simply everything that is not one of those. A
+	 * prayer added to the game in a later client turns up in the right book
+	 * on its own, which is the point of reading it rather than listing it.
+	 */
+	private static boolean isRuinous(Prayer prayer)
+	{
+		return prayer.name().startsWith("RP_");
+	}
+
+	private static Prayer[] bookOf(boolean ruinous)
+	{
+		List<Prayer> out = new ArrayList<>();
+		for (Prayer prayer : Prayer.values())
+		{
+			if (isRuinous(prayer) == ruinous)
+			{
+				out.add(prayer);
+			}
+		}
+		return out.toArray(new Prayer[0]);
+	}
+
+	private static final Prayer[] STANDARD = bookOf(false);
+	private static final Prayer[] RUINOUS = bookOf(true);
 
 	/**
 	 * Levels, with anything boosted or drained picked out.
@@ -756,22 +899,41 @@ class VeritasPartyPanel extends JPanel
 		}
 
 		Skill[] all = Skill.values();
-		JPanel grid = new JPanel(new GridLayout(0, 3, 1, 1));
-		grid.setBackground(VeritasEventsPanel.GRID);
-		grid.setAlignmentX(Component.LEFT_ALIGNMENT);
-		grid.setBorder(BorderFactory.createMatteBorder(1, 1, 1, 1, VeritasEventsPanel.GRID));
+		int total = 0;
+		int shown = Math.min(all.length, boosted.length);
+		int rows = (shown + LEVEL_COLUMNS - 1) / LEVEL_COLUMNS;
+		JPanel grid = grid(rows, LEVEL_COLUMNS, CONTENT - TOTAL_BAR);
 
-		for (int n = 0; n < all.length && n < boosted.length; n++)
+		for (int n = 0; n < rows * LEVEL_COLUMNS; n++)
 		{
-			int now = boosted[n];
-			int was = n < real.length ? real[n] : now;
-			if (now <= 0 && was <= 0)
+			if (n >= shown)
 			{
+				grid.add(blank(false));
 				continue;
 			}
+			int now = boosted[n];
+			int was = n < real.length ? real[n] : now;
 			grid.add(level(all[n], now, was));
+			total += was;
 		}
-		return grid;
+
+		JPanel holder = VeritasEventsPanel.column();
+		holder.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		holder.setAlignmentX(Component.LEFT_ALIGNMENT);
+		holder.add(grid);
+
+		// the figure the game puts under its own stats tab, in the same place
+		JLabel sum = new JLabel("Total level: " + QuantityFormatter.formatNumber(total));
+		sum.setFont(FontManager.getRunescapeFont());
+		sum.setForeground(VeritasEventsPanel.BRASS);
+		sum.setHorizontalAlignment(SwingConstants.CENTER);
+		sum.setAlignmentX(Component.LEFT_ALIGNMENT);
+		sum.setOpaque(true);
+		sum.setBackground(VeritasEventsPanel.TEAL_SEAT);
+		sum.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+		sum.setBorder(BorderFactory.createEmptyBorder(3, 4, 3, 4));
+		holder.add(sum);
+		return holder;
 	}
 
 	/**
@@ -787,11 +949,12 @@ class VeritasPartyPanel extends JPanel
 	{
 		JPanel one = new JPanel(new BorderLayout(2, 0));
 		one.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		one.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 1));
+		one.setBorder(BorderFactory.createEmptyBorder(1, 3, 1, 1));
 
 		JLabel icon = new JLabel();
 		icon.setHorizontalAlignment(SwingConstants.CENTER);
-		icon.setPreferredSize(new Dimension(18, 20));
+		// the game's stat pictures are 23 across; anything less clips them
+		icon.setPreferredSize(new Dimension(24, 24));
 		int sprite = SkillIcons.spriteFor(skill);
 		if (sprite >= 0)
 		{
@@ -799,6 +962,9 @@ class VeritasPartyPanel extends JPanel
 		}
 
 		JLabel figures = new JLabel(String.valueOf(now));
+		// centred in what the icon leaves, rather than pushed up against it
+		// with the rest of the cell empty to its right
+		figures.setHorizontalAlignment(SwingConstants.CENTER);
 		figures.setFont(FontManager.getRunescapeFont());
 		figures.setForeground(now > was ? new Color(0x8C, 0xE8, 0x6F)
 			: now < was ? new Color(0xE8, 0x80, 0x50) : VeritasEventsPanel.BONE);
@@ -814,10 +980,25 @@ class VeritasPartyPanel extends JPanel
 
 	private JPanel grid(int rows, int columns)
 	{
+		return grid(rows, columns, CONTENT);
+	}
+
+	/**
+	 * A grid that is always the same height, however many rows it holds.
+	 *
+	 * GridLayout shares whatever height it is given evenly between its rows,
+	 * so pinning the height here is all it takes for five rows of gear to
+	 * fill the same space as seven rows of inventory.
+	 */
+	private JPanel grid(int rows, int columns, int height)
+	{
 		JPanel grid = new JPanel(new GridLayout(rows, columns, 1, 1));
 		grid.setBackground(VeritasEventsPanel.GRID);
 		grid.setAlignmentX(Component.LEFT_ALIGNMENT);
 		grid.setBorder(BorderFactory.createMatteBorder(1, 1, 1, 1, VeritasEventsPanel.GRID));
+		grid.setPreferredSize(new Dimension(CELL * columns, height));
+		grid.setMinimumSize(new Dimension(CELL * columns, height));
+		grid.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
 		return grid;
 	}
 
@@ -854,7 +1035,7 @@ class VeritasPartyPanel extends JPanel
 	private JLabel emptyCell()
 	{
 		JLabel icon = new JLabel();
-		icon.setPreferredSize(new Dimension(CELL, CELL - 4));
+		icon.setPreferredSize(new Dimension(CELL, CELL));
 		icon.setHorizontalAlignment(SwingConstants.CENTER);
 		icon.setVerticalAlignment(SwingConstants.CENTER);
 		icon.setOpaque(true);
@@ -870,29 +1051,22 @@ class VeritasPartyPanel extends JPanel
 		return icon;
 	}
 
-	/** Nothing at all, for a tab with nothing behind it yet. */
+	/**
+	 * A tab with nothing behind it yet, holding its place.
+	 *
+	 * The same height as a tab with something in it, so a card does not
+	 * change size the moment the first update for it arrives.
+	 */
 	private static JPanel empty()
 	{
 		JPanel holder = VeritasEventsPanel.column();
 		holder.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		holder.setAlignmentX(Component.LEFT_ALIGNMENT);
-		holder.setMaximumSize(new Dimension(Integer.MAX_VALUE, 0));
+		holder.setPreferredSize(new Dimension(CELL, CONTENT));
+		holder.setMaximumSize(new Dimension(Integer.MAX_VALUE, CONTENT));
 		return holder;
 	}
 
-	private JPanel nothing(String said)
-	{
-		JPanel holder = VeritasEventsPanel.column();
-		holder.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		holder.setAlignmentX(Component.LEFT_ALIGNMENT);
-		JLabel line = new JLabel(said);
-		line.setFont(FontManager.getRunescapeSmallFont());
-		line.setForeground(Color.GRAY);
-		line.setAlignmentX(Component.LEFT_ALIGNMENT);
-		line.setBorder(BorderFactory.createEmptyBorder(4, 2, 4, 2));
-		holder.add(line);
-		return holder;
-	}
 
 	/**
 	 * A section heading, which has to not look like a person.

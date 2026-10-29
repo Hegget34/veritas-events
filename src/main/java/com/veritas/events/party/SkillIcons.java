@@ -9,6 +9,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import net.runelite.api.Skill;
 import net.runelite.api.SpriteID;
+import net.runelite.api.gameval.SpriteID.Staticons2;
 
 /**
  * Which picture goes with which skill.
@@ -17,9 +18,10 @@ import net.runelite.api.SpriteID;
  * reason: a skill the game adds later should come out as a missing picture
  * rather than as a missing field thrown while drawing.
  *
- * Checked against the 1.13.0 client: 23 of the 25 it knows have a picture
- * under the same name. The Sailing and Overall have none, being a total rather than
- * a skill drawn in the skills panel.
+ * Checked against the 1.13.4 client: 24 of the 25 it knows have a picture.
+ * Sailing's is only in the newer gameval names, so it is taken from there;
+ * Overall has none at all, being a total rather than a skill the game draws
+ * in its own panel.
  */
 public final class SkillIcons
 {
@@ -50,6 +52,7 @@ public final class SkillIcons
 		PICTURES.put(Skill.RUNECRAFT, SpriteID.SKILL_RUNECRAFT);
 		PICTURES.put(Skill.HUNTER, SpriteID.SKILL_HUNTER);
 		PICTURES.put(Skill.CONSTRUCTION, SpriteID.SKILL_CONSTRUCTION);
+		PICTURES.put(Skill.SAILING, Staticons2.SAILING);
 	}
 
 	private SkillIcons()

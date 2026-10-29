@@ -9,6 +9,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import net.runelite.api.Prayer;
 import net.runelite.api.SpriteID;
+import net.runelite.api.gameval.SpriteID.Prayeron;
 
 /**
  * Which picture goes with which prayer.
@@ -26,6 +27,57 @@ import net.runelite.api.SpriteID;
  */
 public final class PrayerIcons
 {
+	/**
+	 * The bright picture of every prayer in the standard book.
+	 *
+	 * The client also carries a dimmed one of each, for prayers you do not
+	 * have on, but at the size this panel draws them they came out nearly
+	 * black and the book stopped being readable at a glance. So the bright
+	 * one throughout, and the square drawn round it says which are on.
+	 *
+	 * Taken from the client's own sprite names, where Prayeron.ZEAL is
+	 * Zeal, so a prayer added later needs one line here and nothing else.
+	 * The Ruinous Powers prayers are not in that set and fall back to
+	 * PICTURES below.
+	 */
+	private static final Map<Prayer, Integer> LIT = new EnumMap<>(Prayer.class);
+
+	static
+	{
+		LIT.put(Prayer.THICK_SKIN, Prayeron.THICK_SKIN);
+		LIT.put(Prayer.BURST_OF_STRENGTH, Prayeron.BURST_OF_STRENGTH);
+		LIT.put(Prayer.CLARITY_OF_THOUGHT, Prayeron.CLARITY_OF_THOUGHT);
+		LIT.put(Prayer.SHARP_EYE, Prayeron.SHARP_EYE);
+		LIT.put(Prayer.MYSTIC_WILL, Prayeron.MYSTIC_WILL);
+		LIT.put(Prayer.ROCK_SKIN, Prayeron.ROCK_SKIN);
+		LIT.put(Prayer.SUPERHUMAN_STRENGTH, Prayeron.SUPERHUMAN_STRENGTH);
+		LIT.put(Prayer.IMPROVED_REFLEXES, Prayeron.IMPROVED_REFLEXES);
+		LIT.put(Prayer.RAPID_RESTORE, Prayeron.RAPID_RESTORE);
+		LIT.put(Prayer.RAPID_HEAL, Prayeron.RAPID_HEAL);
+		LIT.put(Prayer.PROTECT_ITEM, Prayeron.PROTECT_ITEM);
+		LIT.put(Prayer.HAWK_EYE, Prayeron.HAWK_EYE);
+		LIT.put(Prayer.MYSTIC_LORE, Prayeron.MYSTIC_LORE);
+		LIT.put(Prayer.STEEL_SKIN, Prayeron.STEEL_SKIN);
+		LIT.put(Prayer.ULTIMATE_STRENGTH, Prayeron.ULTIMATE_STRENGTH);
+		LIT.put(Prayer.INCREDIBLE_REFLEXES, Prayeron.INCREDIBLE_REFLEXES);
+		LIT.put(Prayer.PROTECT_FROM_MAGIC, Prayeron.PROTECT_FROM_MAGIC);
+		LIT.put(Prayer.PROTECT_FROM_MISSILES, Prayeron.PROTECT_FROM_MISSILES);
+		LIT.put(Prayer.PROTECT_FROM_MELEE, Prayeron.PROTECT_FROM_MELEE);
+		LIT.put(Prayer.EAGLE_EYE, Prayeron.EAGLE_EYE);
+		LIT.put(Prayer.MYSTIC_MIGHT, Prayeron.MYSTIC_MIGHT);
+		LIT.put(Prayer.RETRIBUTION, Prayeron.RETRIBUTION);
+		LIT.put(Prayer.REDEMPTION, Prayeron.REDEMPTION);
+		LIT.put(Prayer.SMITE, Prayeron.SMITE);
+		LIT.put(Prayer.CHIVALRY, Prayeron.CHIVALRY);
+		LIT.put(Prayer.DEADEYE, Prayeron.DEADEYE);
+		LIT.put(Prayer.MYSTIC_VIGOUR, Prayeron.MYSTIC_VIGOUR);
+		LIT.put(Prayer.PIETY, Prayeron.PIETY);
+		LIT.put(Prayer.PRESERVE, Prayeron.PRESERVE);
+		LIT.put(Prayer.RIGOUR, Prayeron.RIGOUR);
+		LIT.put(Prayer.AUGURY, Prayeron.AUGURY);
+		LIT.put(Prayer.ZEAL, Prayeron.ZEAL);
+	}
+
 	private static final Map<Prayer, Integer> PICTURES = new EnumMap<>(Prayer.class);
 
 	static
@@ -93,6 +145,11 @@ public final class PrayerIcons
 	/** The sprite for a prayer, or -1 when this client has no picture for it. */
 	public static int spriteFor(Prayer prayer)
 	{
+		Integer bright = LIT.get(prayer);
+		if (bright != null)
+		{
+			return bright;
+		}
 		Integer found = PICTURES.get(prayer);
 		return found == null ? -1 : found;
 	}

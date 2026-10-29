@@ -284,7 +284,15 @@ class VeritasEventsPanel extends PluginPanel
 		this.onFactsWanted = onFactsWanted;
 
 		setLayout(new BorderLayout());
-		setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+		/*
+		 * Thin at the sides.
+		 *
+		 * RuneLite gives a plugin panel 225 pixels and puts six of its own
+		 * padding round the outside already. Eight more each side spent
+		 * sixteen of what is left on nothing, which the party grids would
+		 * rather have.
+		 */
+		setBorder(BorderFactory.createEmptyBorder(8, 3, 8, 3));
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
 
 		pressable(resend);
