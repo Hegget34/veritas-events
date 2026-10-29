@@ -37,6 +37,7 @@ import net.runelite.client.party.PartyService;
 import net.runelite.client.party.WSClient;
 import net.runelite.client.party.events.UserPart;
 import net.runelite.client.party.messages.PartyData;
+import net.runelite.client.party.messages.UserSync;
 import net.runelite.client.plugins.party.messages.MemberColorUpdate;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.party.messages.TilePing;
@@ -534,6 +535,24 @@ public class PartyHub
 		onPing.at(ping.getPoint(), colors.get(ping.getMemberId()),
 			from == null ? "" : Text.sanitize(String.valueOf(from.getDisplayName())));
 		boop(ping.getPoint());
+	}
+
+	/**
+	 * Somebody new in the party, asking everyone to say who they are again.
+	 *
+	 * A party message only reaches the people who are already in the room,
+	 * so your colour and your world went out once when you joined and the
+	 * next person to arrive never heard any of it. They drew your pings in
+	 * their own colour because that is all the overlay had to fall back on.
+	 *
+	 * The party sends this round the moment anyone joins, which is what it
+	 * is for. Forgetting what we last sent makes the next tick send the lot
+	 * again, so there is still only the one place anything is sent from.
+	 */
+	@Subscribe
+	public void onUserSync(UserSync sync)
+	{
+		forget();
 	}
 
 	@Subscribe
