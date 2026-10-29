@@ -9,7 +9,7 @@ import com.veritas.events.party.PartyHub;
 import java.awt.event.KeyEvent;
 import javax.inject.Inject;
 import net.runelite.api.Client;
-import net.runelite.api.MenuAction;
+import net.runelite.api.MenuEntry;
 import net.runelite.api.Tile;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.eventbus.Subscribe;
@@ -88,16 +88,13 @@ class VeritasPartyPings implements KeyListener
 	 * scene read while the game is in the middle of changing it. This
 	 * arrives on the client's thread with the click already worked out.
 	 *
-	 * Only a plain walk is ever taken, so holding the key and clicking an
-	 * NPC still attacks it and clicking an item still picks it up. The walk
-	 * itself is eaten, because marking a tile for somebody else is not a
+	 * The click is eaten, because marking a tile for somebody else is not a
 	 * reason to go and stand on it.
 	 */
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked event)
 	{
 		if (!held
-			|| event.getMenuAction() != MenuAction.WALK
 			|| client.isMenuOpen()
 			|| !config.partyPings()
 			|| !party.isInParty())
@@ -106,12 +103,33 @@ class VeritasPartyPings implements KeyListener
 		}
 
 		Tile tile = client.getSelectedSceneTile();
-		if (tile == null)
+		if (tile == null || !onGround())
 		{
 			return;
 		}
 
 		event.consume();
 		party.ping(tile.getWorldLocation());
+	}
+
+	/**
+	 * Whether the click landed on the ground rather than on the interface.
+	 *
+	 * The test is that the menu offers to walk somewhere at all, not that
+	 * walking is what was clicked. A tile with a monster standing on it
+	 * sends Attack, and a tile with loot on it sends Take, and both of those
+	 * are tiles people ping constantly. Asking for the walk itself would
+	 * have left pings working only on bare ground.
+	 */
+	private boolean onGround()
+	{
+		for (MenuEntry entry : client.getMenuEntries())
+		{
+			if (entry != null && "walk here".equalsIgnoreCase(entry.getOption()))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 }
